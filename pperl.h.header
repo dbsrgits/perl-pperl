@@ -10,24 +10,27 @@ use POSIX qw(:signal_h setsid WNOHANG);
 use Carp 'croak','cluck';
 use PPerl qw( recv_fd read_int );
 
-use vars qw(%CHILDREN $spid $data_at);
+use vars qw(%CHILDREN $spid $data_at %FILEHANDLES $logfile);
 
 $spid = $$;      # stash it as we change to be someone else later
 $data_at = tell main::DATA
   if fileno main::DATA;  # strangely it moves!
 
-my $logfile = '/tmp/pperl.log';
-
-$PPERL::SOCKET_NAME = $ARGV[0];
-$PPERL::MAX_SERVERS = $ARGV[1] || 3;
-$PPERL::MAX_REQUESTS = $ARGV[2] || 100;
-$PPERL::WIDE_OPEN = $ARGV[3] || 0;
-$0 = $ARGV[4];
+BEGIN {
+    $logfile = '/tmp/pperl.log';
+    
+    $PPERL::SOCKET_NAME = $ARGV[0];
+    $PPERL::MAX_SERVERS = $ARGV[1] || 3;
+    $PPERL::MAX_REQUESTS = $ARGV[2] || 100;
+    $PPERL::WIDE_OPEN = $ARGV[3] || 0;
+    $PPERL::NO_CLEANUP = $ARGV[4] || 0;
+    $0 = $ARGV[5];
+}
 
 sub log_error {
     local *FH;
-    open(FH, ">>$logfile") 
-      or die "Can't open logfile: '$logfile' $!"; 
+    open(FH, ">>$logfile")
+      or die "Can't open logfile: '$logfile' $!";
     print FH @_;
 }
 
@@ -67,46 +70,67 @@ sub barf {
 
 use vars qw( $pid $pidfile $saved_dir );
 
+
 # lifted from B::walksymtable - mild tweaks to avoid all that slow
 # slow recursion
 
 my ($count, $closed);
-sub close_over {
+sub find_open_filehandles {
     my ($symref, $prefix) = @_;
+    return if $PPERL::NO_CLEANUP;
     my $sym;
     my $ref;
     no strict 'vars';
-
+    
     $prefix = '' unless defined $prefix;
     push @packages, [ $symref, $prefix ];
 
-    local(*glob);
-
+    local(*GLOB);
+    
+    my %fhs;
+    
     my $foo;
     while ($foo = shift @packages) {
         ($symref, $prefix) = @$foo;
-
+        
+        log_error("Examining $prefix\n");
+        
         while (($sym, $ref) = each %$symref) {
             $count++;
-            *glob = "*main::".$prefix.$sym;
+            *GLOB = "*main::".$prefix.$sym;
+            
+            log_error("Processing: $sym\n");
             if ($sym =~ /::$/) {
                 $sym = $prefix . $sym;
                 if ($sym ne "main::" && $sym ne "<none>::") {
-                    push @packages, [ \%glob, $sym ];
+                    push @packages, [ \%GLOB, $sym ];
                 }
             }
             else {
                 next if $sym eq 'DATA';
-                if (defined *glob{IO}) {
-                    $closed++;
-                    log_error("closing $prefix$sym\n");
-                    close *glob;
+                if (defined *GLOB{IO} and fileno(*GLOB{IO})) {
+                    log_error("Adding: *main::".$prefix.$sym. " to FILEHANDLES\n");
+                    $fhs{"*main::".$prefix.$sym} = *GLOB{IO};
                 }
             }
         }
     }
+    
+    return %fhs;
 }
 
+sub close_over {
+    return if $PPERL::NO_CLEANUP;
+    log_error("closing over\n");
+    my %fhs = find_open_filehandles(@_);
+    foreach my $key (keys %fhs) {
+        next if exists $FILEHANDLES{$key};
+        my $fh = $fhs{$key};
+        log_error("closing $key\n");
+        $closed++;
+        close $fh;
+    }
+}
 
 sub init_server {
   ($pidfile) = @_;
@@ -192,7 +216,6 @@ sub kill_children {
   kill INT => keys %CHILDREN;
   # wait until all the children die
   # sleep while %CHILDREN;
-  unlink $PPERL::SOCKET_NAME;
 }
 
 sub open_pid_file {
@@ -200,9 +223,11 @@ sub open_pid_file {
   if (-e $file) {  # oops.  pid file already exists
     my $fh = IO::File->new($file) || return;
     my $pid = <$fh>;
-    croak "Invalid PID file" unless $pid =~ /^(\d+)$/;
-    croak "Server already running with PID $1" if kill 0 => $1;
-    croak "Can't unlink PID file $file" unless -w $file && unlink $file;
+    if ($pid != $$) {
+      croak "Invalid PID file" unless $pid =~ /^(\d+)$/;
+      croak "Server already running with PID $1" if kill 0 => $1;
+      croak "Can't unlink PID file $file" unless -w $file && unlink $file;
+    }
   }
   return IO::File->new($file,O_WRONLY|O_CREAT|O_EXCL,($PPERL::WIDE_OPEN ? 0666 : 0644))
     or die "Can't create $file: $!\n";
@@ -210,7 +235,10 @@ sub open_pid_file {
 
 END {
   $> = $<;  # regain privileges
-  unlink $pidfile if defined $pid and $$ == $pid;
+  if (defined $pid and $$ == $pid) {
+    unlink $pidfile;
+    unlink $PPERL::SOCKET_NAME;
+  }
 }
 
 my $CHILD_COUNT = 0;   # number of children
@@ -221,11 +249,17 @@ my $DONE        = 0;   # set flag to true when server done
 $PPERL::SOCKET_NAME =~ m~^([a-z0-9/_-]+)$~i
   or die "unclean socket name '$PPERL::SOCKET_NAME'";
 $PPERL::SOCKET_NAME = $1;
+if (-e $PPERL::SOCKET_NAME) {
+  if (-e "${PPERL::SOCKET_NAME}.pid") {
+    die "socket and pid file both exist - possible error state. Delete both and retry";
+  }
+  unlink($PPERL::SOCKET_NAME);
+}
 my $socket = IO::Socket::UNIX->new( Local     => $PPERL::SOCKET_NAME,
                                     Type      => SOCK_STREAM,
                                     Listen    => 1,
                                     Reuse     => 1,
-                                  ) or die "Can't create listen socket: $!";
+                                  ) or croak("Can't create listen socket: $!");
 
 if ($PPERL::WIDE_OPEN) {
   chmod(0777, $PPERL::SOCKET_NAME);
@@ -276,16 +310,16 @@ sub setup_chunk {
             log_error("$$ performing the Dick Van Dyke shuffle\n");
             # Mary Poppins, step in time
             my $newsock = POSIX::dup($sock);
-            log_error("$$ dup sock: $sock newsock: $newsock\n");
             unless (defined $newsock) {
-                log_error("$$ gor blimey Mary Poppins, I can't move\n");
-                barf("$$ Dick Van Dyke exception!\n");
+                log_error("$$ gor blimey Mary Poppins, I can't move ($!)\n");
+                barf("$$ Dick Van Dyke exception! ($!)\n");
             }
+            log_error("$$ dup sock: $sock newsock: $newsock\n");
             POSIX::close($sock);
             $sock = $newsock;
             unless ($sd = $_[0] = IO::Socket->new_from_fd( $sock, "+<" )) {
-                log_error("$$ failed to step in time\n");
-                barf("$$ Dick Van Dyke shuffle failed!\n");
+                log_error("$$ failed to step in time ($!)\n");
+                barf("$$ Dick Van Dyke shuffle failed! ($!)\n");
             }
         }
         my $fd = recv_fd( $sock );
@@ -314,7 +348,7 @@ sub setup_chunk {
             log_error("$$ is talking to $pid\n");
             $pid =~ /^(\d+)$/ or barf("$$ pid is mangled\n");
             if ($] > 5.006001) {
-                PPerl::setreadonly('$', $1);
+                PPerl::setreadonly('$', $1); # ');
             }
             else {
                 $$ = $1;
@@ -439,7 +473,6 @@ while (!$DONE) {
 
 PPerl::kill_children();
 log_error("normal termination\n");
-unlink $PPERL::SOCKET_NAME;
 exit 0;
 
 #putting it here avoids accidental closures
@@ -448,9 +481,15 @@ ____PPerlCode:
 eval {
     package main;
     no strict;
-
+    
     # should you change the line below change write_pperl_h too
     #### Your Code Here ####
 };
 
 goto ____PPerlBackAgain;
+
+BEGIN {
+    log_error("finding open filehandles ($PPERL::NO_CLEANUP)\n");
+    %FILEHANDLES = find_open_filehandles(\%::);
+}
+

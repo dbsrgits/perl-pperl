@@ -21,4 +21,4 @@ $out = `./pperl t/spammy.plx foo 2>&1`;
 ok($? >> 8, 70);
 ok($out, "foo at t/spammy.plx line 7.\n");
 
-`./pperl -- -k t/spammy.plx`
+`./pperl -k t/spammy.plx`

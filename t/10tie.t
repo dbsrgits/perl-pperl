@@ -20,4 +20,4 @@ for(1..10) {
 
 unlink $db;
 
-`./pperl -- -k t/tie.plx`;
+`./pperl -k t/tie.plx`;

@@ -13,4 +13,4 @@ $cwd = cwd;
 ok(`$^X cwd.plx`, $cwd);
 ok(`../pperl cwd.plx`, $cwd);
 
-`../pperl -- -k cwd.plx`;
+`../pperl -k cwd.plx`;

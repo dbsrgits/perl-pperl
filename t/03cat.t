@@ -33,4 +33,4 @@ ok($foo, $seed, "pperl with pipe3");
 $foo = `./pperl t/cat.plx $file`;
 ok($foo, $seed, "pperl with arg3");
 
-system("./pperl -- --kill t/cat.plx");
+system("./pperl --kill t/cat.plx");

@@ -9,4 +9,4 @@ for (1..10) {
     ok(`./pperl t/fork.plx`, $out);
 }
 
-`./pperl -- -k t/fork.plx`;
+`./pperl -k t/fork.plx`;

@@ -17,4 +17,4 @@ print "# Sockno: $new_sock_no\n";
 ok($new_sock_no);
 ok($new_sock_no != $sock_no);
 
-`./pperl -- -k t/dickvd.plx`;
+`./pperl -k t/dickvd.plx`;

@@ -40,4 +40,4 @@ for my $perl ( $^X,
     ok($got, join('', sort @expect));
 }
 
-`./pperl -- -k t/signals.plx`
+`./pperl -k t/signals.plx`

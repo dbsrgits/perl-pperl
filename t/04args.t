@@ -13,7 +13,7 @@ ok(capture('./pperl', 't/args.plx'), '');
 ok(capture('./pperl', 't/args.plx', "foo\nbar", 'baz'),
    qq{'foo\nbar'\n'baz'\n});
 
-`./pperl -- -k t/args.plx`;
+`./pperl -k t/args.plx`;
 
 `./pperl t/env.plx`; # run it once so there's a $ENV{PATH} about
 
@@ -27,7 +27,7 @@ ok(capture($^X, 't/env.plx'),
 ok(capture('./pperl', 't/env.plx'),
   qq{'foo' => 'bar\nbaz'\n'null' => ''\n'quu\nx' => 'wobble'\n});
 
-`./pperl -- -k t/env.plx`;
+`./pperl -k t/env.plx`;
 
 sub capture {
     my $pid = open(FH, "-|");

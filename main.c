@@ -20,7 +20,7 @@
 
 #include "pass_fd.h" /* the stuff borrowed from stevens */
 
-#define DEBUG 0
+#define DEBUG 1
 
 /* must never be less than 3 */
 #define BUF_SIZE 4096
@@ -45,6 +45,8 @@ int any_user = 0;
 int prefork = 5;
 int maxclients = 100;
 int path_max;
+int no_cleanup = 0;
+FILE *log_fd = NULL;
 
 #if DEBUG
 #define Dx(x) (x)
@@ -56,10 +58,14 @@ static
 void Debug( const char * format, ...)
 {
     va_list args;
-
+    
+    if (!log_fd)
+      return;
+    
     va_start(args, format);
-    vfprintf(stderr, format, args);
+    vfprintf(log_fd, format, args);
     va_end(args);
+    fflush(log_fd);
 }
 
 
@@ -72,7 +78,7 @@ int main( int argc, char **argv )
 
     if( argc < 2 )
         Usage( argv[0] );
-
+    
 #ifdef PATH_MAX
     path_max = PATH_MAX;
 #else
@@ -85,15 +91,8 @@ int main( int argc, char **argv )
     pperl_section = 0;
     for ( i = 1; i < argc; i++ ) {
         pArg = argv[i];
+        /* fprintf(stderr, "Parsing arg: %s\n", pArg); */
         if (*pArg != '-') break;
-        if (!strcmp(pArg, "--")) {
-            pperl_section = 1;
-            continue;
-        }
-        if (!pperl_section) {
-            DecodeParm( pArg );
-            continue;
-        }
         if ( !strcmp(pArg, "-k") || !strcmp(pArg, "--kill") )
             kill_script = 1;
         else if (!strncmp(pArg, "--prefork", 9) ) {
@@ -105,6 +104,35 @@ int main( int argc, char **argv )
 
             newval = atoi(pArg);
             if (newval > 0) prefork = newval;
+        }
+        else if (!strncmp(pArg, "--logfile", 7) ) {
+            int newval;
+            char *filename;
+            if (pArg[7] == '=') /* --logfile=.... */
+              pArg += 13;
+            else
+              pArg = argv[++i];
+            
+            filename = pArg;
+            newval = atoi(pArg);
+            if (newval == 0) {
+              fprintf(stderr, "opening log_fd: %s\n", filename);
+              log_fd = fopen(filename, "a");
+              if (!log_fd) {
+                perror("Cannot open logfile");
+                exit(1);
+              }
+            }
+            else {
+              log_fd = fdopen(newval, "a");
+              if (!log_fd) {
+                perror("fd for --logfile error");
+                exit(1);
+              }
+            }
+        }
+        else if (!strncmp(pArg, "--no-cleanup", 12) ) {
+            no_cleanup = 1;
         }
         else if (!strncmp(pArg, "--maxclients", 12) ) {
             int newval;
@@ -120,15 +148,17 @@ int main( int argc, char **argv )
             any_user = 1;
         else if ( !strcmp(pArg, "-h") || !strcmp(pArg, "--help") )
             Usage( NULL );
+        else if ( !strncmp(pArg, "--", 2) )
+            ; /* do nothing - backward compatibility */
         else {
-            printf("pperl: unknown parameter '%s'\n", pArg);
-            Usage( NULL );
+            DecodeParm( pArg );
         }
     }
     
     i++;
     return_code = DispatchCall( pArg, argc - i, (char**)(argv + i) );
     Dx(Debug("done, returning %d\n", return_code));
+    if (log_fd) fclose(log_fd);
     return return_code;
 }
 
@@ -137,9 +167,6 @@ static void DecodeParm( char *pArg )
     if ( (strlen(perl_options) + strlen(pArg) + 1) > 1000 ) {
         fprintf(stderr, "param list too long. Sorry.");
         exit(1);
-    }
-    else if ( (strncmp(pArg, "-h", 2) == 0) || (strncmp(pArg, "--help", 6) == 0) ) {
-        Usage( NULL );
     }
     strcat(perl_options, pArg);
     strcat(perl_options, " ");
@@ -151,13 +178,13 @@ static void Usage( char *pName )
 
     if( pName == NULL )
     {
-        printf( "Usage: pperl [perl options] [-- pperl options] filename\n" );
+        printf( "Usage: pperl [options] filename\n" );
     }
     else
     {
-        printf( "Usage: %.255s [perl options] [-- pperl options] filename\n", pName );
+        printf( "Usage: %.255s [options] filename\n", pName );
     }
-    printf("perl options are passed to your perl executable (see perl -h).\n"
+    printf("perl options are passed to your perl executable (see the perlrun man page).\n"
            "pperl options control the persistent perl behaviour\n"
            "\n"
            "PPerl Options:\n"
@@ -169,6 +196,9 @@ static void Usage( char *pName )
            "  -z  or --anyuser   Allow any user (after the first) to access the socket\n"
            "                       WARNING: This has severe security implications. Use\n"
 	   "                       at your own risk\n"
+           "  --no-cleanup       Skip the cleanup stage at the end of running your script\n"
+           "                       this may make your code run faster, but if you forget\n"
+           "                       to close files then they will remain unflushed and unclosed\n"
     );
     exit( 1 );
 }
@@ -234,21 +264,34 @@ static int handle_socket(int sd, int argc, char **argv );
 static int DispatchCall( char *scriptname, int argc, char **argv )
 {
     register int i, sd, len;
+    int error_number;
     ssize_t readlen;
     struct sockaddr_un saun;
+    struct stat stat_buf;
+    struct stat sock_stat;
     char *sock_name;
     char buf[BUF_SIZE];
+    int respawn_script = 0;
 	sd = 0;
 
     /* create socket name */
     Dx(Debug("pperl: %s\n", scriptname));
     sock_name = MakeSockName(scriptname);
     Dx(Debug("got socket: %s\n", sock_name));
+
+    if (!stat(sock_name, &sock_stat) && !stat(scriptname, &stat_buf)) {
+        if (stat_buf.st_mtime >= sock_stat.st_mtime) {
+            respawn_script = 1;
+            Dx(Debug("respawning slave - top level script changed\n"));
+        } 
+    }
     
-    if (kill_script) {
+    if (kill_script || respawn_script) {
         int pid_fd, sock_name_len;
         char *pid_file;
-        pid_t pid;
+        pid_t pid = 0;
+        
+        respawn_script = 0; /* reset so we can use it later :-) */
 	
         sock_name_len = strlen(sock_name);
         pid_file = my_malloc(sock_name_len + 5);
@@ -264,13 +307,13 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
         if (pid_fd == -1) {
             Dx(Debug("Cannot open pid file (perhaps PPerl wasn't running for that script?)\n"));
             write(1, "No process killed - no pid file\n", 32);
-            return 0;
+            goto killed;
         }
         
         readlen = read(pid_fd, buf, BUF_SIZE);
         if (readlen == -1) {
             perror("pperl: nothing in pid file?");
-            return 0;
+            goto killed;
         }
         buf[readlen] = '\0';
         
@@ -279,12 +322,30 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
         pid = atoi(buf);
         Dx(Debug("got pid %d (%s)\n", pid, buf));
         if (kill(pid, SIGINT) == -1) {
-            perror("pperl: could not kill process");
+            if (errno == ESRCH) {
+                perror("pperl kill");
+                Dx(Debug("Process didn't exist. Unlinking %s and %s\n", pid_file, sock_name));
+                unlink(pid_file);
+                unlink(sock_name);
+            }
+            else {
+                perror("pperl: could not kill process");
+            }
         }
         
         free(pid_file);
+
+    killed:
+    
+        if (kill_script) {
+            free(sock_name); /* Hmm, should probably do this everywhere else we return too */
+            return 0;
+        }
         
-        return 0;
+        if (pid != 0) {
+            /* cheesy - let the child go away proper */
+            while (!kill(pid, 0)) {}
+        }
     }
     
     for (i = 0; i < 10; i++) {
@@ -308,41 +369,96 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
     Dx(Debug("%d connecting\n", getpid()));
 
+    if (stat((const char*)sock_name, &stat_buf)) {
+        if (errno == ENOENT) {
+            /* socket doesn't exist. good */
+            Dx(Debug("socket doesn't exist yet (good)\n"));
+        }
+        else {
+            perror("Socket stat error");
+            exit(1);
+        }
+    }
+    
+    /* is there a race between stat() and connect() here? Or is it irrelevant? */
+    
     if (connect(sd, (struct sockaddr *)&saun, len) < 0) {
         /* Consider spawning Perl here and try again */
         FILE *source;
         int tmp_fd;
         char temp_file[BUF_SIZE];
+        char *lock_file;
+        int sock_name_len;
+        int lock_fd;
         int start_checked = 0;
         int wrote_footer = 0; /* we may encounter __END__ or __DATA__ */
         int line;
+        int retry_connect = 0;
+        int exit_code = 0;
 
         int pid, itmp, exitstatus;
         sigset_t mask, omask;
 
         Dx(Debug("Couldn't connect, spawning new server: %s\n", strerror(errno)));
-
+        
+        sock_name_len = strlen(sock_name);
+        lock_file = my_malloc(sock_name_len + 6);
+        strncpy(lock_file, sock_name, sock_name_len);
+        lock_file[sock_name_len] = '.';
+        lock_file[sock_name_len+1] = 'l';
+        lock_file[sock_name_len+2] = 'o';
+        lock_file[sock_name_len+3] = 'c';
+        lock_file[sock_name_len+4] = 'k';
+        lock_file[sock_name_len+5] = '\0';
+        
+        Dx(Debug("opening lock_file: %s\n", lock_file));
+        lock_fd = open(lock_file, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR);
+        if (lock_fd == -1) {
+            perror("Cannot open lock file");
+            exit_code = 1;
+            goto cleanup;
+        }
+        while (flock(lock_fd, LOCK_EX|LOCK_NB) == -1) {
+            Dx(Debug("flock failed - someone else is probably waiting to spawn - sleeping\n"));
+            retry_connect = 1;
+            sleep(1);
+        }
+        
+        if (retry_connect) {
+            if (connect(sd, (struct sockaddr *)&saun, len) >= 0) {
+                goto cleanup; /* everything is now OK! */
+            }
+            /* otherwise we try ourselves to re-spawn */
+        }
+        
+        /*
         if (unlink(sock_name) != 0 && errno != ENOENT) {
             perror("pperl: removal of old socket failed");
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
+        */
         
         /* Create temp file with adjusted script... */
         if (!(source = fopen(scriptname, "r"))) {
             perror("pperl: Cannot open perl script");
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
 
         snprintf(temp_file, BUF_SIZE, "%s/%s", P_tmpdir, "pperlXXXXXX");
         tmp_fd = mkstemp(temp_file);
         if (tmp_fd == -1) {
             perror("pperl: Cannot create temporary file");
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
             
         write(tmp_fd, "### Temp File ###\n", 18);
         write(tmp_fd, perl_header, strlen(perl_header));
 
+        /* rewrite the perl script with pperl.h.header contents wrapper
+           and do some other fixups in the process */
         line = 0;
         while ( fgets( buf, BUF_SIZE, source ) ) {
             readlen = strlen(buf);
@@ -387,7 +503,8 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
         
         if (fclose(source)) { 
             perror("pperl: Error reading perl script");
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
 
         if (!wrote_footer) 
@@ -399,10 +516,10 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
         /*** Temp file creation done ***/
 
-        snprintf(buf, BUF_SIZE, "%s %s %s %s %d %d %d %s", 
+        snprintf(buf, BUF_SIZE, "%s %s %s %s %d %d %d %d %s", 
                  PERL_INTERP, perl_options, temp_file,
                  sock_name, prefork, maxclients, 
-                 any_user, scriptname);
+                 any_user, no_cleanup, scriptname);
         Dx(Debug("syscall: %s\n", buf));
 
         /* block SIGCHLD so noone else can wait() on the child before we do */
@@ -412,18 +529,27 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
         if ((pid = system(buf)) != 0) {
             unlink(temp_file);
+            if (stat((const char*)sock_name, &stat_buf) == 0) {
+                /* socket exists - perhaps we should just try and connect to it? */
+                /* possible cause is a race condition. So ignore this and just try
+                   the connect() call again. */
+                perror("pperl: perl script failed to start, but lets be gung-ho and try and connect again anyway!");
+            }
             perror("pperl: perl script failed to start");
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
-        Dx(Debug("waiting for perl to return...\n"));
-        while ((itmp = waitpid(0, &exitstatus, 0)) == -1 && errno == EINTR)
-            ;
-        sigprocmask(SIG_SETMASK, &omask, NULL);
-        Dx(Debug("returned.\n"));
-
-        /* now remove the perl script */
-        unlink(temp_file);
-
+        else {
+          Dx(Debug("waiting for perl to return...\n"));
+          while ((itmp = waitpid(0, &exitstatus, 0)) == -1 && errno == EINTR)
+              ;
+          sigprocmask(SIG_SETMASK, &omask, NULL);
+          Dx(Debug("returned.\n"));
+    
+          /* now remove the perl script */
+          unlink(temp_file);
+        }
+        
         /* try and connect to the new socket */
         while ((i++ <= 30) && (connect(sd, (struct sockaddr *)&saun, len) < 0))
         {
@@ -431,12 +557,28 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
             sleep(1);
         }
         if (i >= 30) {
+            /* If we really *really* couldn't connect, try and delete the socket if it exists */
+            if (unlink(sock_name) != 0 && errno != ENOENT) {
+                perror("pperl: removal of old socket failed");
+            }
             perror("pperl: persistent perl process failed to start after 30 seconds");
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
-        Dx(Debug("\n"));
+        
+        Dx(Debug("Connected\n"));
+        
+    cleanup:
+        flock(lock_fd, LOCK_UN);
+        close(lock_fd);
+        free(lock_file);
+        if (exit_code > 0) {
+            free(sock_name);
+            exit(exit_code);
+        }
     }
     
+    free(sock_name);
     return handle_socket(sd, argc, argv);
 }
 
@@ -531,6 +673,9 @@ handle_socket(int sd, int argc, char **argv) {
 
     Dx(Debug("reading return code\n"));
     i = read(sd, buf, BUF_SIZE - 1);
+    if (i == -1) {
+      perror("Nothing read back from socket!");
+    }
     buf[i] = '\0';
     Dx(Debug("socket read '%s'\n", buf));
 

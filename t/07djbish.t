@@ -9,4 +9,4 @@ ok($? >> 8, 20);
 `./pperl -Mlib=blib/lib,blib/arch t/djbish.plx 1< t/djbish.plx`;
 ok($? >> 8, 20);
 
-`./pperl -- -k t/djbish.plx`;
+`./pperl -k t/djbish.plx`;

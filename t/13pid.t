@@ -3,7 +3,7 @@ use strict;
 use Test;
 BEGIN { plan tests => 4 };
 
-for my $perl ( $^X, './pperl -Iblib/lib -Iblib/arch -- --prefork 1', './pperl', './pperl' ) {
+for my $perl ( $^X, './pperl -Iblib/lib -Iblib/arch --prefork 1', './pperl', './pperl' ) {
     my $child = open FOO, "$perl t/pid.plx|"
       or die "can't fork: $!";
     my $answer = <FOO>;
@@ -12,4 +12,4 @@ for my $perl ( $^X, './pperl -Iblib/lib -Iblib/arch -- --prefork 1', './pperl', 
     ok ($answer, "$child\n");
 }
 
-`./pperl -- -k t/pid.plx`
+`./pperl -k t/pid.plx`

@@ -1,5 +1,14 @@
 Revision history for Perl extension PPerl.
 
+0.23
+    - Locks around race points
+    - More improvements to cleanup
+
+0.22
+    - Attempt to work around a race condition
+    - Added support for turning off cleanup routines
+    - Cleanup socket a little better on shutdown
+
 0.21
     - Support maxclients setting on command line
     - Slightly improved debugging
