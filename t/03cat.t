@@ -15,22 +15,22 @@ ok($foo, $seed, "straight with pipe");
 $foo = `$^X t/cat.plx $file`;
 ok($foo, $seed, "straight with arg");
 
-$foo = `src/pperl t/cat.plx < $file`;
+$foo = `./pperl t/cat.plx < $file`;
 ok($foo, $seed, "pperl with pipe");
 
-$foo = `src/pperl t/cat.plx $file`;
+$foo = `./pperl t/cat.plx $file`;
 ok($foo, $seed, "pperl with arg");
 
-$foo = `src/pperl t/cat.plx < $file`;
+$foo = `./pperl t/cat.plx < $file`;
 ok($foo, $seed, "pperl with pipe2");
 
-$foo = `src/pperl t/cat.plx $file`;
+$foo = `./pperl t/cat.plx $file`;
 ok($foo, $seed, "pperl with arg2");
 
-$foo = `src/pperl t/cat.plx < $file`;
+$foo = `./pperl t/cat.plx < $file`;
 ok($foo, $seed, "pperl with pipe3");
 
-$foo = `src/pperl t/cat.plx $file`;
+$foo = `./pperl t/cat.plx $file`;
 ok($foo, $seed, "pperl with arg3");
 
-system("src/pperl -- --kill t/cat.plx");
+system("./pperl -- --kill t/cat.plx");

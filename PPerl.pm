@@ -1,9 +1,19 @@
 package PPerl;
 
 use strict;
-use vars qw($VERSION);
+use vars qw($VERSION @ISA @EXPORT_OK);
 
-$VERSION = '0.13';
+require DynaLoader;
+require Exporter;
+
+$VERSION = '0.14';
+
+@ISA = qw(Exporter DynaLoader);
+@EXPORT_OK = qw( s_pipe send_fd recv_fd dup2 writen close_fd read_byte read_int );
+
+bootstrap PPerl $VERSION;
+
+
 
 1;
 __END__

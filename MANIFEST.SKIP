@@ -4,10 +4,17 @@ CVS/.*
 \.tar$
 \.tgz$
 \.tar\.gz$
+\.o$
 ^mess/
 ^tmp/
 ^blib/
 ^Makefile$
 ^Makefile\.[a-z]+$
 ^pm_to_blib$
+\.cvsignore
+PPerl\.bs
+PPerl\.o
+PPerl\.c
 ~$
+pperl
+pperl.h

@@ -41,25 +41,38 @@ EOT
     exit;
 }
 
+my $variant = "44BSD";
+$variant = "43BSD" if $^O eq 'solaris';
+
 WriteMakefile(
     'NAME'              => 'PPerl',
     'VERSION_FROM'      => 'PPerl.pm', # finds $VERSION
-#    'PREREQ_PM'         => { Net::Server => 0.82 }, # e.g., Module::Name => 1.1
-    'EXE_FILES'         => [ qw( src/pperl ) ],
-    'realclean'         => {FILES => 'src/pperl'},
+    'EXE_FILES'         => [ qw( pperl ) ],
+    'realclean'         => {FILES => 'pperl'},
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM => 'PPerl.pm', # retrieve abstract from module
        AUTHOR     => 'Matt Sergeant, matt@sergeant.org') : ()),
-       DEFINE     => "-DPERL_INTERP='\"$perl_path\"'",
+       DEFINE     => "-DVARIANT_$variant -DPERL_INTERP='\"$perl_path\"' -I.",
 );
+
+
 
 sub MY::postamble {
     "
-src/pperl.h: src/pperl.h.header src/pperl.h.footer PPerl.pm
-\t$^X src/write_pperl_h
+# just hacking around
+#DEFINE += -Wall
 
-src/pperl: Makefile src/pperl.c src/pperl.h
-\t\$(CC) \$(CFLAGS) \$(OPTIMIZE) \$(LDFLAGS) \$(DEFINE) -o src/pperl src/pperl.c $Config{perllibs}
+pperl.h: pperl.h.header pperl.h.footer PPerl.pm
+\t$^X write_pperl_h
+
+pperl.o: Makefile pperl.c pperl.h
+
+pperl: pperl.o pass_fd.o
+\t\$(CC) \$(CFLAGS) \$(LDFLAGS) \$(DEFINE) -o pperl pperl.c pass_fd.o $Config{libs}
+
+pass_fd.c: pass_fd.h
+
+PPerl.xs: pass_fd.c
 
 ";
 }

@@ -1,0 +1,30 @@
+# -*- perl -*-
+                };
+                log_error("$$ run done\n");
+                if ($@) {
+                    print STDERR $@;
+                    writen($____self_num, "255", 3);
+                }
+                else {
+                    writen($____self_num, "0", 1);
+                }
+
+              __PPerl_exit:
+                log_error("$$ closing down socket\n");
+                close($____self);
+                open(STDIN,"</dev/null");
+                open(STDOUT,">/dev/null");
+                open(STDERR, '>&STDOUT');
+                close ARGV   if defined fileno ARGV;
+            }
+            exit 0;                 # child is done
+        }
+    }
+    sleep;         # wait for a signal
+}
+
+PPerl::kill_children();
+warn "normal termination\n" if $PPERL::DEBUG;
+exit 0;
+
+

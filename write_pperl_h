@@ -2,9 +2,9 @@
 use strict;
 
 
-open(PPERL, ">src/pperl.h") || die "Can't write to src/pperl.h: $!";
-open(PPERL_HEAD, "<src/pperl.h.header") || die "Can't read src/pperl.h.header: $!";
-open(PPERL_FOOT, "<src/pperl.h.footer") || die "Can't read src/pperl.h.footer: $!";
+open(PPERL, ">pperl.h") || die "Can't write to pperl.h: $!";
+open(PPERL_HEAD, "<pperl.h.header") || die "Can't read pperl.h.header: $!";
+open(PPERL_FOOT, "<pperl.h.footer") || die "Can't read pperl.h.footer: $!";
 
 print PPERL <<'EOT';
 /* pperl.h */
@@ -37,7 +37,7 @@ print PPERL << 'EOT';
 
 EOT
 
-print PPERL '#define PPERL_VERSION "'. `$^X -Mlib=. -MPPerl -e 'print \$PPerl::VERSION'`. "\"\n";
+print PPERL '#define PPERL_VERSION "'. `grep 'VERSION =' PPerl.pm | cut -d"'" -f2` . "\"\n";
 close PPERL;
 close PPERL_HEAD;
 close PPERL_FOOT;

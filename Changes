@@ -1,5 +1,11 @@
 Revision history for Perl extension PPerl.
 
+0.14
+    - Switched entire model to pass fd's over the socket, rather than
+      all of STDIN/STDOUT. This means we no longer have to do lots of
+      messing with select() - it all just "works". Many beers to
+      RichardC for this work.
+
 0.13
     - Implement wide-open sockets (for people who need to run the same
       script as different users). Note this may have bad security "issues".

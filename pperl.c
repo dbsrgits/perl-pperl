@@ -18,13 +18,16 @@
 #include <unistd.h>
 #include "pperl.h"
 
-#define PREFORK 2
+#include "pass_fd.h" /* the stuff borrowed from stevens */
+
+#define PREFORK 5
 #define MAX_CLIENTS_PER_CHILD 100
+
+#define DEBUG 0
 
 /* must never be less than 3 */
 #define BUF_SIZE 4096
 
-#define DEBUG 0
 
 #ifdef ENOBUFS
 #   define NO_BUFSPC(e) ((e) == ENOBUFS || (e) == ENOMEM)
@@ -36,8 +39,6 @@ void Usage( char *pName );
 void DecodeParm( char *pArg );
 void DecodePPerlParm( char *pArg );
 int  DispatchCall( char *scriptname, int argc, char **argv );
-void DoIO( int sd, int errsd );
-void ProcessError( int errsd );
 
 char *pVersion = PPERL_VERSION;
 char perl_options[1024];
@@ -179,7 +180,7 @@ MakeSockName(char * scriptname )
 {
     char * sockname;
     char * save;
-    char fullpath[path_max];
+    char fullpath[BUF_SIZE];
     int i = 0;
 
     if (realpath(scriptname, fullpath) == NULL) {
@@ -214,45 +215,13 @@ sig_handler (int signal)
     skreech_to_a_halt++;
 }
 
-int GetReturnCode( char *sock_name )
-{
-    char buf[BUF_SIZE];
-    int fd, readupto;
-    ssize_t readlen;
-    
-    snprintf(buf, BUF_SIZE - 1, "%s.%d.ret", sock_name, getpid());
-    Debug("Getting return code from: %s\n", buf);
-
-    fd = open(buf, O_RDONLY);
-    if (!fd) {
-        perror("retcode open()");
-    }
-    unlink(buf);
-
-    Debug("reading return code from %d\n", fd);
-    buf[0] = '\0';
-    readlen = read(fd, buf, BUF_SIZE - 1);
-    if (readlen == -1) {
-        perror("retcode read");
-    }
-    else {
-        buf[readlen] = '\0';
-    }
-
-    Debug("return code is: %s\n", buf);
-
-    close(fd);
-    free(sock_name);
-    return atoi(buf);
-}
-
+static int handle_socket(int sd, int argc, char **argv );
 int DispatchCall( char *scriptname, int argc, char **argv )
 {
-    register int i, sd, errsd, len, sock_flags;
+    register int i, sd, len;
     ssize_t readlen;
     struct sockaddr_un saun;
     char *sock_name;
-    char **env;
     char buf[BUF_SIZE];
 	sd = 0;
 
@@ -260,49 +229,49 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     Debug("pperl: %s\n", scriptname);
     sock_name = MakeSockName(scriptname);
     Debug("got socket: %s\n", sock_name);
-
+    
     if (kill_script) {
-	int pid_fd, sock_name_len;
-	char *pid_file;
-	pid_t pid;
+        int pid_fd, sock_name_len;
+        char *pid_file;
+        pid_t pid;
 	
-	sock_name_len = strlen(sock_name);
-	pid_file = my_malloc(sock_name_len + 5);
-	strncpy(pid_file, sock_name, sock_name_len);
-	pid_file[sock_name_len] = '.';
-	pid_file[sock_name_len+1] = 'p';
-	pid_file[sock_name_len+2] = 'i';
-	pid_file[sock_name_len+3] = 'd';
-	pid_file[sock_name_len+4] = '\0';
-	
-	Debug("opening pid_file: %s\n", pid_file);
-	pid_fd = open(pid_file, O_RDONLY);
+        sock_name_len = strlen(sock_name);
+        pid_file = my_malloc(sock_name_len + 5);
+        strncpy(pid_file, sock_name, sock_name_len);
+        pid_file[sock_name_len] = '.';
+        pid_file[sock_name_len+1] = 'p';
+        pid_file[sock_name_len+2] = 'i';
+        pid_file[sock_name_len+3] = 'd';
+        pid_file[sock_name_len+4] = '\0';
+        
+        Debug("opening pid_file: %s\n", pid_file);
+        pid_fd = open(pid_file, O_RDONLY);
         if (pid_fd == -1) {
             Debug("Cannot open pid file (perhaps PPerl wasn't running for that script?)\n");
             write(1, "No process killed - no pid file\n", 32);
             return 0;
         }
-
-	readlen = read(pid_fd, buf, BUF_SIZE);
-	if (readlen == -1) {
+        
+        readlen = read(pid_fd, buf, BUF_SIZE);
+        if (readlen == -1) {
             perror("nothing in pid file?");
             return 0;
-	}
+        }
         buf[readlen] = '\0';
-
-	close(pid_fd);
-
+        
+        close(pid_fd);
+        
         pid = atoi(buf);
-	Debug("got pid %d (%s)\n", pid, buf);
+        Debug("got pid %d (%s)\n", pid, buf);
         if (kill(pid, SIGINT) == -1) {
             perror("could not kill process");
         }
-
-	free(pid_file);
-
-	return 0;
+        
+        free(pid_file);
+        
+        return 0;
     }
-
+    
     for (i = 0; i < 10; i++) {
         sd = socket(PF_UNIX, SOCK_STREAM, PF_UNSPEC);
         if (sd != -1) {
@@ -321,6 +290,8 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     strcpy(saun.sun_path, sock_name);
 
     len = sizeof(saun.sun_family) + strlen(saun.sun_path) + 1;
+
+    Debug("%d connecting\n", getpid());
 
     if (connect(sd, (struct sockaddr *)&saun, len) < 0) {
         /* Consider spawning Perl here and try again */
@@ -362,7 +333,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         write(tmp_fd, "\n#line 1 ", 9);
         write(tmp_fd, scriptname, strlen(scriptname));
         write(tmp_fd, "\n", 1);
-
+        
         while( ( readlen = read(perl_script, buf, BUF_SIZE) ) ) {
             if (readlen == -1) {
                 perror("read perl_script");
@@ -416,48 +387,77 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         }
         Debug("\n");
     }
-
-    Debug("connected\n");
-
-    /* print to socket... */
-    send(sd, "[ENV]\n", 6, 0);
     
+    return handle_socket(sd, argc, argv);
+}
+
+static 
+int 
+handle_socket(int sd, int argc, char **argv) {
+    long max_fd;
+    char **env;
+    int i;
+    char buf[BUF_SIZE];
+
+    Debug("connected over %d\n", sd);
+
+    Debug("sending fds\n");
+    if ((max_fd = sysconf(_SC_OPEN_MAX)) < 0) {
+        perror("dunno how many fds to check");
+        exit(1);
+    }
+
+    for (i = 0; i < max_fd; i++) {
+        if (fcntl(i, F_GETFL, -1) >= 0 && i != sd) {
+            int ret;
+            write(sd, &i, sizeof(int));
+            ret = send_fd(sd, i);
+            Debug("send_fd %d %d\n", i, ret);
+        }
+    }
+    i = -1;
+    write(sd, &i, sizeof(int));
+    Debug("fds sent\n");
+
+    write(sd, "[PID]", 6);
+    snprintf(buf, BUF_SIZE, "%d", getpid());
+    write(sd, buf, strlen(buf) + 1);
+
+    
+    /* print to socket... */
+    write(sd, "[ENV]", 6);
     for (i= 0, env = environ; *env; i++, env++); 
-    snprintf(buf, BUF_SIZE, "%d\n", i);
-    send(sd, buf, strlen(buf), 0);
+    snprintf(buf, BUF_SIZE, "%d", i);
+    write(sd, buf, strlen(buf) + 1);
     
     while ( *environ != NULL ) {
         size_t len = strlen(*environ) + 1;
         /* Debug("sending environ: %s\n", *environ); */
-        send(sd, *environ, len, 0);
+        write(sd, *environ, len);
         environ++;
     }
 
-    send(sd, "[CWD]\n", 6, 0);
+    write(sd, "[CWD]", 6);
     if (getcwd(buf, BUF_SIZE) == NULL) {
         perror("getcwd");
         exit (1);
     }
-    send(sd, buf, strlen(buf), 0);
-    send(sd, "\n", 1, 0);
+    write(sd, buf, strlen(buf) + 1);
 
-    send(sd, "[ARGV]\n", 7, 0);
-    snprintf(buf, BUF_SIZE, "%d\n", argc);
-    send(sd, buf, strlen(buf), 0);
+    Debug("sending %d args\n", argc);
+    write(sd, "[ARGV]", 7);
+    snprintf(buf, BUF_SIZE, "%d", argc);
+    write(sd, buf, strlen(buf) + 1);
     for (i = 0; i < argc; i++) {
         size_t len = strlen(argv[i]) + 1;
-        Debug("sending argv: %s\n", argv[i]);
-        send(sd, argv[i], len, 0);
+        Debug("sending argv[%d]: '%s'\n", i, argv[i]);
+        write(sd, argv[i], len);
     }
 
-    send(sd, "[PID]\n", 6, 0);
-    snprintf(buf, BUF_SIZE, "%d\n", getpid());
-    send(sd, buf, strlen(buf), 0);
-    
-    send(sd, "[STDIO]\n", 8, 0);
+    write(sd, "[DONE]", 7);
 
     Debug("waiting for OK message\n");
-    if (recv(sd, buf, 3, 0) != 3) {
+    if (read(sd, buf, 3) != 3) {
         perror("failed to get OK message");
         exit(1);
     }
@@ -466,171 +466,21 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         fprintf(stderr, "incorrect ok message: %s\n", buf);
         exit(1);
     }
-
-    /* open stderr stream */
-    snprintf(buf, BUF_SIZE, "%s.%d.err", sock_name, getpid());
-    Debug("openning STDERR: %s\n", buf);
-    if ( (errsd = open(buf, O_RDONLY)) == -1) {
-        perror("open STDERR");
-        exit(1);
-    }
-
-    /* set flags */
-    sock_flags = fcntl(sd, F_GETFL);
-    fcntl(sd, F_SETFL, sock_flags | O_NONBLOCK);
-
-    /* set flags */
-    sock_flags = fcntl(errsd, F_GETFL);
-    fcntl(errsd, F_SETFL, sock_flags | O_NONBLOCK);
-
-    Debug("reading results\n");
-    DoIO(sd, errsd);
-    
-    Debug("cleanup, deleting %s\n", buf);
-    unlink(buf);
-    close(errsd);
-
-    Debug("exiting\n");
-
-    return GetReturnCode(sock_name);
-}
-
-void
-ProcessError( int errsd )
-{
-    char buf[BUF_SIZE];
-    ssize_t readlen;
-
-    Debug("reading stderr\n");
-    readlen = read(errsd, buf, BUF_SIZE);
-    if (readlen == -1) {
-        /* might be EAGAIN (deadlock). Try writing instead */
-        if (errno != EAGAIN) {
-            perror("ProcessError read");
-        }
-    }
-    else {
-        /* Debug(buf); */
-        write(2, buf, readlen);
-    }
-}
+    Debug("got it\n");
 
 
-void
-DoIO( int sd, int errsd )
-{
-    fd_set rfds, wfds, stdin_fds;
-    struct timeval tv;
-    int maybe_read, maybe_write;
-    ssize_t readlen, writelen;
-    char buf[BUF_SIZE];
-    int allow_writes = 1;        
+    Debug("reading return code\n");
+    i = read(sd, buf, BUF_SIZE);
+    buf[i] = '\0';
+    Debug("socket read '%s'\n", buf);
 
-    maybe_read = maybe_write = 1;
-
-   /* set stdin to non-blocking */
-    /* sock_flags = fcntl(0, F_GETFL); 
-       fcntl(0, F_SETFL, sock_flags | O_NONBLOCK); 
-    */
-
-    signal(SIGINT, sig_handler);
-
-    /* while we're connected... */
-    while (!skreech_to_a_halt) {
-        FD_ZERO(&rfds);
-        FD_SET(sd, &rfds);
-
-        FD_ZERO(&stdin_fds);
-        FD_SET(0, &stdin_fds);
-
-        /* for some reason, if I make usec == 0 (poll), performance sucks */
-        tv.tv_sec = 0;
-        tv.tv_usec = 1;
-
-        Debug("checking for read...\n");
-
-        if (select(sd + 1, &rfds, NULL, NULL, &tv)) {
-            /* can read */
-            Debug("can read...\n");
-            if (FD_ISSET(sd, &rfds)) {
-                Debug("reading stdout\n");
-                readlen = read(sd, buf, BUF_SIZE);
-                if (readlen == -1) {
-                    /* might be EAGAIN (deadlock). Try writing instead */
-                    if (errno != EAGAIN) {
-                        perror("read stdout");
-                    }
-                    continue;
-                }
-                if (readlen == 0) {
-                    Debug("all done. remote end closed socket\n");
-                    shutdown(sd, 2);
-                    close(sd);
-                    skreech_to_a_halt = 1;
-                    /* fflush(NULL); eh? */
-                    continue;
-                }
-                /* Debug(buf); */
-                writelen = write(1, buf, readlen);
-                if (writelen != readlen) {
-                    perror("bar");
-                    break;
-                }
-            }
-        }
-
-        Debug("checking for stdin/write...\n");
-
-        tv.tv_sec = 0;
-        tv.tv_usec = 1;
-
-        if ( (allow_writes == 1) && select(1, &stdin_fds, NULL, NULL, &tv)) {
-            Debug("something to send\n");
-            /* something on stdin to send */
-            tv.tv_sec = 0;
-            tv.tv_usec = 1;
-
-            FD_ZERO(&wfds);
-            FD_SET(sd, &wfds);
-
-            tv.tv_sec = 0;
-            tv.tv_usec = 0;
-            readlen = read(0, buf, BUF_SIZE);
-            Debug("read done, read %d bytes\n", readlen);
-            if (readlen < 1) {
-                /* ignore STDIN read errors and closed STDIN */
-                if (errno != EAGAIN) {
-                    /* perror("stdin"); */
-                    Debug("shutting down write part\n");
-                    fflush(NULL);
-                    shutdown(sd, 1); /* close writing part of the socket now */
-                    allow_writes = 0;
-                }
-            }
-            else {
-                buf[readlen] = 0;
-                Debug("send: %s onto %d\n", buf, sd);
-                send(sd, buf, readlen, 0);
-                Debug("sent\n");
-            }
-        }
-
-        ProcessError(errsd);
+    for (i = 0; i < max_fd; i++) {
+        close(i);
     }
     
-    ProcessError(errsd);
-
-    if (skreech_to_a_halt) {
-        /* perror("closing socket"); */
-        shutdown(sd, 2);
-        close(sd);
-        fflush(NULL);
-        return;
-    }
-
-    return;
-
+    exit (atoi(buf));
 }
+
 
 
 /* 

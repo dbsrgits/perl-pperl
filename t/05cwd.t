@@ -6,11 +6,11 @@ use Cwd;
 
 my $cwd = cwd;
 ok(`$^X t/cwd.plx`, $cwd);
-ok(`src/pperl t/cwd.plx`, $cwd);
+ok(`./pperl t/cwd.plx`, $cwd);
 
 chdir 't';
 $cwd = cwd;
 ok(`$^X cwd.plx`, $cwd);
-ok(`../src/pperl cwd.plx`, $cwd);
+ok(`../pperl cwd.plx`, $cwd);
 
-`../src/pperl -- -k cwd.plx`;
+`../pperl -- -k cwd.plx`;
