@@ -24,9 +24,12 @@ for my $perl ( $^X,
     ok($got, "starting\n");
     my @expect;
     for my $sig (qw(HUP TERM)) {
-        print "# sending $child $sig\n";
         kill $sig, $child;
         push @expect, "Got SIG$sig\n";
+
+        # bad juju - 5.00503 needs time to compose itself, newer perls
+        # with better signal handling are just fine
+        sleep 1 if $] < 5.006;
     }
 
     local $/;

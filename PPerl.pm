@@ -6,7 +6,7 @@ use vars qw($VERSION @ISA @EXPORT_OK);
 require DynaLoader;
 require Exporter;
 
-$VERSION = '0.17';
+$VERSION = '0.19';
 
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw( s_pipe send_fd recv_fd writen read_int );
@@ -78,6 +78,9 @@ kill (with SIGINT) the process with that PID.
 =head1 BUGS
 
 The process does not reload when the script or modules change.
+
+$^S is not represented identically with respect to perl, since your
+script will be run within an eval block
 
 =head1 AUTHOR
 

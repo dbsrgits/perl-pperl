@@ -387,8 +387,10 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
         /*** Temp file creation done ***/
 
-        snprintf(buf, BUF_SIZE, "%s %s %s %s %d %d %d", PERL_INTERP, perl_options, temp_file,
-                sock_name, prefork, MAX_CLIENTS_PER_CHILD, any_user);
+        snprintf(buf, BUF_SIZE, "%s %s %s %s %d %d %d %s", 
+                 PERL_INTERP, perl_options, temp_file,
+                 sock_name, prefork, MAX_CLIENTS_PER_CHILD, 
+                 any_user, scriptname);
         Dx(Debug("syscall: %s\n", buf));
 
         /* block SIGCHLD so noone else can wait() on the child before we do */
@@ -408,7 +410,7 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
         Dx(Debug("returned.\n"));
 
         /* now remove the perl script */
-        /*unlink(temp_file);*/
+        unlink(temp_file);
 
         /* try and connect to the new socket */
         while ((i++ <= 30) && (connect(sd, (struct sockaddr *)&saun, len) < 0))
@@ -516,7 +518,7 @@ handle_socket(int sd, int argc, char **argv) {
     Dx(Debug("got it\n"));
 
     Dx(Debug("reading return code\n"));
-    i = read(sd, buf, BUF_SIZE);
+    i = read(sd, buf, BUF_SIZE - 1);
     buf[i] = '\0';
     Dx(Debug("socket read '%s'\n", buf));
 

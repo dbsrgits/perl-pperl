@@ -17,7 +17,7 @@ use IO::File;
 use Fcntl ':flock', 'F_GETFL';
 use POSIX qw(:signal_h setsid WNOHANG);
 use Carp 'croak','cluck';
-use PPerl qw( recv_fd writen read_int );
+use PPerl qw( recv_fd read_int );
 
 use vars qw(%CHILDREN $spid $data_at);
 
@@ -26,13 +26,12 @@ $data_at = tell main::DATA
   if fileno main::DATA;  # strangely it moves!
 
 my $logfile = '/tmp/pperl.log';
-PPerl::setlogfile($logfile);
 
 $PPERL::SOCKET_NAME = $ARGV[0];
 $PPERL::MAX_SERVERS = $ARGV[1] || 3;
 $PPERL::MAX_REQUESTS = $ARGV[2] || 100;
 $PPERL::WIDE_OPEN = $ARGV[3] || 0;
-
+$0 = $ARGV[4];
 
 use constant PPERL_DEBUG =>
 #define      PPERL_DEBUG   \
@@ -52,13 +51,15 @@ sub log_error ($) {
 
 
 my $____self;
-my $should_exit;
+my $should_exit = 0;
 my $exit_code = 0;
 
 BEGIN {
     *CORE::GLOBAL::exit = sub {
         my $retval = shift || 0;
         my $package = (caller)[0];
+
+        log_error("exit $package $retval $should_exit\n");
         if ($package eq 'PPerlServer' || $should_exit) {
             exit($retval);
         }
@@ -82,7 +83,7 @@ sub barf {
     exit 1;
 }
 
-my ($pid,$pidfile,$saved_dir);
+use vars qw( $pid $pidfile $saved_dir );
 
 # lifted from B::walksymtable - mild tweaks to avoid all that slow
 # slow recursion
@@ -317,8 +318,12 @@ sub setup_chunk {
             chomp( my $pid = <$sd> );
             log_error("$$ is talking to $pid\n");
             $pid =~ /^(\d+)$/ or barf("$$ pid is mangled\n");
-            $$ = $1; # FIXME - 5.8 to be doesn't like this so will
-                     # need another way to frob a readonly value
+            if ($] > 5.006001) {
+                PPerl::setreadonly('$', $1);
+            }
+            else {
+                $$ = $1;
+            }
             next;
         }
         if ($_ eq '[CWD]') {
@@ -378,8 +383,8 @@ while (!$DONE) {
                 }
                 my $____self_num = $____self->fileno;
 
-                local %ENV  = ();
-                local @ARGV = ();
+                %ENV  = ();
+                @ARGV = ();
 
                 setup_chunk($____self);
 
@@ -390,27 +395,17 @@ while (!$DONE) {
                 }
 
                 log_error("$$ sending OK message\n");
-                writen($____self_num, "OK\n", 3);
+                POSIX::write($____self_num, "OK\n", 3);
                 log_error("$$ sent\n");
 
                 # reset bogus '<STDIN>, line 99' count
                 $. = 0;
-                eval {
-                    local %SIG  = ();
-                    my $____data_pos = 0;
-                    if ( fileno main::DATA ) {
-                        $____data_pos = tell main::DATA;
-                        log_error("$pid DATA is wound to $____data_pos\n");
-                    }
+                $? = $! = $^E = 0;
+                select STDOUT;
+                '' =~ m/^$/; # should reset match variables
 
-
-                    package main;
-                    no strict;
-
-                    # should you change the line below change write_pperl_h too
-                    #### Your Code Here ####
-
-                };
+                goto ____PPerlCode;
+              ____PPerlBackAgain:
 
                 if ($@) {
                     print STDERR $@;
@@ -436,9 +431,9 @@ while (!$DONE) {
                     my $ret = seek(main::DATA, $data_at, 0);
                     log_error("seek returned $ret\n");
                 }
-                log_error("$$ run done\n");
+                log_error("$$ run done - exit code $exit_code\n");
 
-                writen($____self_num, "$exit_code", length($exit_code));
+                print $____self $exit_code;
                 log_error("$$ closing down socket\n");
                 close($____self);
             }
@@ -452,3 +447,16 @@ PPerl::kill_children();
 warn "normal termination\n" if PPERL_DEBUG;
 unlink $PPERL::SOCKET_NAME;
 exit 0;
+
+#putting it here avoids accidental closures
+____PPerlCode:
+
+eval {
+    package main;
+    no strict;
+
+    # should you change the line below change write_pperl_h too
+    #### Your Code Here ####
+};
+
+goto ____PPerlBackAgain;

@@ -1,9 +1,7 @@
 #!perl -w
 use strict;
-use Config;
-use IO::Handle;
+$| = 1;
 
-my $new = "starting\n";
 my @out;
 my $running = 1;
 for my $sig (qw(HUP TERM)) {
@@ -13,8 +11,6 @@ for my $sig (qw(HUP TERM)) {
     };
 }
 
-$| = 1;
-STDOUT->autoflush(1);
 print "starting\n"; # let the test know we're hooked in
 while ($running) {}
 print sort @out;

@@ -9,42 +9,6 @@
 #include        <unistd.h>
 #include	"pass_fd.h"
 
-static char *logfile;
-
-void
-setlogfile (char *value)
-{
-    logfile = strdup(value);
-}
-
-#define XSDEBUG 0
-#if XSDEBUG
-
-#include <stdio.h>
-
-void
-Dprintf(char * format, ...)
-{
-    va_list args;
-    FILE *file;
-
-    if (!(file = fopen(logfile, "a"))) exit (1);
-
-    va_start(args, format);
-    vfprintf(file, format, args);
-    va_end(args);
-    fclose(file);
-}
-
-#else
-
-void
-Dprintf(char *format, ...)
-{
-}
-
-#endif
-
 #if VARIANT_SVR4
 
 int
@@ -67,24 +31,6 @@ s_pipe(int fd[2])
 
 #endif
 
-
-ssize_t					/* Write "n" bytes to a descriptor. */
-writen(int fd, const void *vptr, size_t n)
-{
-    size_t		nleft, nwritten;
-    const char	*ptr;
-    
-    ptr = vptr;	/* can't do pointer arithmetic on void* */
-    nleft = n;
-    while (nleft > 0) {
-	if ( (nwritten = write(fd, ptr, nleft)) <= 0)
-	    return(nwritten);		/* error */
-	
-	nleft -= nwritten;
-	ptr   += nwritten;
-    }
-    return(n);
-}
 
 #if VARIANT_43BSD
 
@@ -146,7 +92,6 @@ recv_fd(int servfd)
 }
 
 #else 
-
 
 struct cmessage {
     struct cmsghdr cmsg;
@@ -216,6 +161,5 @@ recv_fd(int over)
 
     return cm.fd;
 }
-
 
 #endif

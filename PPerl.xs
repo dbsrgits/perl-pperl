@@ -9,49 +9,41 @@ MODULE = PPerl	PACKAGE = PPerl
 PROTOTYPES: DISABLE
 
 void
-setlogfile(logfile)
-    char *logfile;
+setreadonly(char *name, int value)
+  CODE:
+    GV *tmpgv;
+    if ((tmpgv = gv_fetchpv(name, TRUE, SVt_PV))) {
+        SvREADONLY_off(GvSV(tmpgv));
+	sv_setiv(GvSV(tmpgv), value);
+        SvREADONLY_on(GvSV(tmpgv));
+    }
+
 
 int
-s_pipe(in, out)
-    SV *in;
-    SV *out;
-  PREINIT:
-    int fd[2];
+s_pipe(SV* in, SV* out)
   CODE:
+    int fd[2];
+
     RETVAL = s_pipe(fd);
     sv_setiv(in,  fd[0]);
     sv_setiv(out, fd[1]);
   OUTPUT:
     RETVAL
 
-int
-send_fd(over, this)
-    int over;
-    int this;
-  OUTPUT: 
-    RETVAL
 
 int
-recv_fd(on)
-    int on;
-  OUTPUT: 
-    RETVAL
+send_fd(int over, int this)
+
 
 int
-writen(fd, bytes, count)
-     int fd;
-     char *bytes;
-     int count;
-   OUTPUT:
-     RETVAL
+recv_fd(int on)
+
 
 int
-read_int(fd)
-    int fd;
-  PREINIT:
-    int foo;
+read_int(int fd)
   CODE:
+    int foo;
+
     read(fd, &foo, sizeof(foo));
     RETVAL = foo;
   OUTPUT:

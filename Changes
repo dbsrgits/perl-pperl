@@ -1,5 +1,13 @@
 Revision history for Perl extension PPerl.
 
+0.19
+    - Rejig the generated code to fix a nasty closure bug
+
+0.18
+    - Made $$ changes work on perl 5.8
+    - Set $0
+    - Some bug fixes
+
 0.17
     - Renamed pperl.c to main.c to allow building on case-insensitive file 
       systems (HFS+, samba)

@@ -7,9 +7,6 @@
 
 void    setlogfile(char *);
 
-ssize_t	readn(int, void *, size_t);
-ssize_t	writen(int, const void *, size_t);
-
 int	recv_fd(int);
 int	send_fd(int, int);
 

@@ -35,6 +35,6 @@ sub capture {
     splice(@_, 1, 0, '-Iblib/lib', '-Iblib/arch');
     if ($pid) { local $/; $result = <FH>; close FH }
     else      { exec(@_) or die "failure to exec $!"; }
-    return $result;
+    return defined($result) ? $result : '';
 }
 
