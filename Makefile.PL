@@ -1,4 +1,5 @@
 use ExtUtils::MakeMaker;
+use Config;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
@@ -17,11 +18,11 @@ WriteMakefile(
 );
 
 sub MY::postamble {
-    '
+    "
 src/pperl: src/pperl.c src/pperl.h
-	$(CC) -g -Wall $(CFLAGS) $(OPTIMIZE) $(LDFLAGS) $(DEFINE) -o src/pperl src/pperl.c
+	\$(CC) \$(CFLAGS) \$(OPTIMIZE) \$(LDFLAGS) \$(DEFINE) -o src/pperl src/pperl.c $Config{libs}
 
-';
+";
 }
 
 sub Write_PPerl_h {

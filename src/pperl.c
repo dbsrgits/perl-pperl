@@ -42,18 +42,21 @@ extern char **environ;
 int skreech_to_a_halt = 0;
 int kill_script = 0;
 
+#if DEBUG
 void Debug( const char * format, ...)
 {
     va_list args;
 
-#if !DEBUG
-    return;
-#endif
-
-    va_start(args, format);
+    va_start(args, (void)format);
     vfprintf(stderr, format, args);
     va_end(args);
 }
+#else
+void Debug()
+{
+}
+#endif
+
 
 void send_escaped_line( int sd, char * value )
 {
@@ -577,7 +580,7 @@ DoIO( int sd, int errsd )
                 if (readlen < 1) {
                     /* ignore STDIN read errors and closed STDIN */
                     if (errno != EAGAIN) {
-                        // perror("stdin");
+                        /* perror("stdin"); */
                         Debug("shutting down write part\n");
                         fflush(NULL);
                         shutdown(sd, 1); /* close writing part of the socket now */

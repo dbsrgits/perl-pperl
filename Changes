@@ -1,5 +1,8 @@
 Revision history for Perl extension PPerl.
 
+0.06
+    - Fixes for Solaris compiles
+
 0.05
     - Compilation on big endian architectures from Richard Clamp
     - Now works on Solaris and MacOSX
