@@ -1,5 +1,12 @@
 Revision history for Perl extension PPerl.
 
+0.17
+    - Renamed pperl.c to main.c to allow building on case-insensitive file 
+      systems (HFS+, samba)
+    - pid propogation
+    - Minor rework of the script slurping including moving __DATA__ and
+      end blocks to the end. __END__ detection
+
 0.16
     - Tests and fixes for: -T behaviour.  fork(), tied data, autoclose
       behavior, signal propogation, broken test 00stevens.t.

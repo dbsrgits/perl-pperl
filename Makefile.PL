@@ -66,10 +66,10 @@ $hacking
 pperl.h: pperl.h.header PPerl.pm
 \t$^X write_pperl_h
 
-pperl.o: Makefile pperl.c pperl.h
+main.o: Makefile main.c pperl.h
 
-pperl: pperl.o pass_fd.o
-\t\$(CC) \$(CFLAGS) \$(LDFLAGS) \$(DEFINE) -o pperl pperl.o pass_fd.o $Config{libs}
+pperl: main.o pass_fd.o
+\t\$(CC) \$(CFLAGS) \$(LDFLAGS) \$(DEFINE) -o pperl main.o pass_fd.o $Config{libs}
 
 pass_fd.c: pass_fd.h
 

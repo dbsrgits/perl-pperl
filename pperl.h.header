@@ -19,7 +19,11 @@ use POSIX qw(:signal_h setsid WNOHANG);
 use Carp 'croak','cluck';
 use PPerl qw( recv_fd writen read_int );
 
-use vars qw(%CHILDREN);
+use vars qw(%CHILDREN $spid $data_at);
+
+$spid = $$;      # stash it as we change to be someone else later
+$data_at = tell main::DATA
+  if fileno main::DATA;  # strangely it moves!
 
 my $logfile = '/tmp/pperl.log';
 PPerl::setlogfile($logfile);
@@ -32,7 +36,7 @@ $PPERL::WIDE_OPEN = $ARGV[3] || 0;
 
 use constant PPERL_DEBUG =>
 #define      PPERL_DEBUG   \
-  1
+  0
   ;
 
 sub log_error ($) {
@@ -109,6 +113,7 @@ sub close_over {
                 }
             }
             else {
+                next if $sym eq 'DATA';
                 if (defined *glob{IO}) {
                     $closed++;
                     log_error("closing $prefix$sym\n");
@@ -269,6 +274,7 @@ sub setup_chunk {
     my $sd = shift;
     $sd->autoflush(1);
 
+    $spid = $$;
     my $sock = $sd->fileno();
 
     log_error("$$ starting handshake\n");
@@ -310,6 +316,9 @@ sub setup_chunk {
         if ($_ eq '[PID]') {
             chomp( my $pid = <$sd> );
             log_error("$$ is talking to $pid\n");
+            $pid =~ /^(\d+)$/ or barf("$$ pid is mangled\n");
+            $$ = $1; # FIXME - 5.8 to be doesn't like this so will
+                     # need another way to frob a readonly value
             next;
         }
         if ($_ eq '[CWD]') {
@@ -387,9 +396,16 @@ while (!$DONE) {
                 # reset bogus '<STDIN>, line 99' count
                 $. = 0;
                 eval {
+                    local %SIG  = ();
+                    my $____data_pos = 0;
+                    if ( fileno main::DATA ) {
+                        $____data_pos = tell main::DATA;
+                        log_error("$pid DATA is wound to $____data_pos\n");
+                    }
+
+
                     package main;
                     no strict;
-                    local %SIG  = ();
 
                     # should you change the line below change write_pperl_h too
                     #### Your Code Here ####
@@ -416,6 +432,10 @@ while (!$DONE) {
                 open(STDOUT,">/dev/null");
                 open(STDERR, '>&STDOUT');
 
+                if ( fileno main::DATA && $data_at ) {
+                    my $ret = seek(main::DATA, $data_at, 0);
+                    log_error("seek returned $ret\n");
+                }
                 log_error("$$ run done\n");
 
                 writen($____self_num, "$exit_code", length($exit_code));

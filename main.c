@@ -298,16 +298,15 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
     if (connect(sd, (struct sockaddr *)&saun, len) < 0) {
         /* Consider spawning Perl here and try again */
-        int perl_script;
+        FILE *source;
         int tmp_fd;
         char temp_file[BUF_SIZE];
-        char syscall[BUF_SIZE];
-        int i = 0;
         int start_checked = 0;
+        int wrote_footer = 0; /* we may encounter __END__ or __DATA__ */
+        int line;
+
         int pid, itmp, exitstatus;
         sigset_t mask, omask;
-
-        buf[0] = 0;
 
         Dx(Debug("Couldn't connect, spawning new server: %s\n", strerror(errno)));
 
@@ -315,10 +314,9 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
             perror("pperl: removal of old socket failed");
             exit(1);
         }
-
+        
         /* Create temp file with adjusted script... */
-        perl_script = open(scriptname, O_RDONLY);
-        if (perl_script == -1) {
+        if (!(source = fopen(scriptname, "r"))) {
             perror("pperl: Cannot open perl script");
             exit(1);
         }
@@ -329,51 +327,59 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
             perror("pperl: Cannot create temporary file");
             exit(1);
         }
-
+            
         write(tmp_fd, "### Temp File ###\n", 18);
         write(tmp_fd, perl_header, strlen(perl_header));
-        
-        while( ( readlen = read(perl_script, buf, BUF_SIZE) ) ) {
-            char *str = buf;
-            if (readlen == -1) {
-                perror("pperl: read perl_script");
-                exit(1);
-            }
-            if (!start_checked) {
-                char *line = "1 ";
+
+        line = 0;
+        while ( fgets( buf, BUF_SIZE, source ) ) {
+            readlen = strlen(buf);
+            Dx(Debug("read '%s' %d \n", buf, readlen));
+
+            if (!start_checked) { /* first line */
                 start_checked = 1;
 
-                if (buf[0] == '#' && buf[1] == '!') {
-                    str = strstr(buf, "\n");
-                    if (str) {
-                        char *args;
-                        line = "2 ";
-                        *str = '\0'; 
-                        str++;
-                        readlen -= buf - str;
+                if (buf[0] == '#' && buf[1] == '!') { 
+                    char *args;
+                    /* solaris sometimes doesn't propogate all the
+                     * shebang line  - so we do that here */
+                    if ( (args = strstr(buf, " ")) ) {
+                        strncat(perl_options, args, strlen(args) - 1);
+                    }
 
-                        /* solaris sometimes doesn't propogate all the
-                         * shebang line  - so we do that here */
-                        if ( (args = strstr(buf, " ")) ) {
-                            strcat(perl_options, args);
-                        }
-                    }
-                    else {
-                        /* the whole script was a shebang line! */
-                        str = buf;
-                    }
+                    write(tmp_fd, "\n#line 2 ", 9);
+                    write(tmp_fd, scriptname, strlen(scriptname));
+                    write(tmp_fd, "\n", 1);
+
+                    line = 2;
+                    continue;
                 }
-                write(tmp_fd, "\n#line ", 7);
-                write(tmp_fd, line, 2);
-                write(tmp_fd, scriptname, strlen(scriptname));
-                write(tmp_fd, "\n", 1);
+                else {
+                    write(tmp_fd, "\n#line 1 ", 9);
+                    write(tmp_fd, scriptname, strlen(scriptname));
+                    write(tmp_fd, "\n", 1);
+                }
             }
-            write(tmp_fd, str, readlen);
+            if ((!strcmp(buf, "__END__\n") || 
+                 !strcmp(buf, "__DATA__\n")) &&
+                !wrote_footer) {
+                char text_line[BUF_SIZE];
+                wrote_footer = 1;
+                write(tmp_fd, perl_footer, strlen(perl_footer));
+                snprintf(text_line, BUF_SIZE, "package main;\n#line %d %s\n", line, scriptname);
+                write(tmp_fd, text_line, strlen(text_line));
+            }
+            write(tmp_fd, buf, readlen);
+            if (buf[readlen] == '\n') ++line;
+        }
+        
+        if (fclose(source)) { 
+            perror("pperl: Error reading perl script");
+            exit(1);
         }
 
-        close(perl_script);
-
-        write(tmp_fd, perl_footer, strlen(perl_footer));
+        if (!wrote_footer) 
+            write(tmp_fd, perl_footer, strlen(perl_footer));
 
         Dx(Debug("wrote file %s\n", temp_file));
 
@@ -381,16 +387,16 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
         /*** Temp file creation done ***/
 
-        snprintf(syscall, BUF_SIZE, "%s %s %s %s %d %d %d", PERL_INTERP, perl_options, temp_file,
+        snprintf(buf, BUF_SIZE, "%s %s %s %s %d %d %d", PERL_INTERP, perl_options, temp_file,
                 sock_name, prefork, MAX_CLIENTS_PER_CHILD, any_user);
-        Dx(Debug("syscall: %s\n", syscall));
+        Dx(Debug("syscall: %s\n", buf));
 
         /* block SIGCHLD so noone else can wait() on the child before we do */
         sigemptyset(&mask);
         sigaddset(&mask, SIGCHLD);
         sigprocmask(SIG_BLOCK, &mask, &omask);
 
-        if ((pid = system(syscall)) != 0) {
+        if ((pid = system(buf)) != 0) {
             unlink(temp_file);
             perror("pperl: perl script failed to start");
             exit(1);
@@ -402,7 +408,7 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
         Dx(Debug("returned.\n"));
 
         /* now remove the perl script */
-        unlink(temp_file);
+        /*unlink(temp_file);*/
 
         /* try and connect to the new socket */
         while ((i++ <= 30) && (connect(sd, (struct sockaddr *)&saun, len) < 0))

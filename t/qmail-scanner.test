@@ -8,7 +8,7 @@ sudo ls > /dev/null
 echo using wrapper $wrapper
 
 (   echo "#!/bin/sh"
-    echo exec sudo setuidgid qmailq `pwd`/pperl -I`pwd`/blib/lib -I`pwd`/blib/arch -- --any-user --prefork=1 /var/qmail/bin/qmail-scanner-queue.pl
+    echo exec sudo setuidgid qmailq `pwd`/pperl -I`pwd`/blib/lib -I`pwd`/blib/arch -- --anyuser --prefork=1 /var/qmail/bin/qmail-scanner-queue.pl
 ) > "$wrapper"
 chmod +x $wrapper
 
@@ -27,7 +27,7 @@ for x in 1 2 ; do
 done
 echo
 
-#rm $wrapper
+rm $wrapper
 
 echo "Killing"
 sudo ./pperl -- -k /var/qmail/bin/qmail-scanner-queue.pl
