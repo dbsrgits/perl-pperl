@@ -15,5 +15,8 @@ t/01basic.t
 t/02usage.t
 t/03cat.t
 t/04args.t
+t/05cwd.t
 t/args.plx
 t/cat.plx
+t/cwd.plx
+t/env.plx

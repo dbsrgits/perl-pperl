@@ -1,5 +1,12 @@
 Revision history for Perl extension PPerl.
 
+0.09
+    - Better ENV support (Richard Clamp)
+    - Support CWD (Richard Clamp)
+
+0.08
+    - Slight performance improvement and cleanup patches from RichardC.
+
 0.07
     - Nasty bug where temp files were left around fixed.
     - Made pperl display proper version

@@ -40,38 +40,46 @@ sub process_request {
 
     PARTS:
     while (<STDIN>) {
-        if (/^\[DIE\]$/) {
-            REAPER();
+        if (/^\[CWD\]$/) {
+            my $cwd = <STDIN>;
+            chomp $cwd;
+            chdir $cwd or die "couldn't chdir: '$!'";
+            next;
         }
         if (/^\[ENV\]$/) {
-            while (<STDIN>) {
-                redo PARTS if /^\[/;
+            my $env = <STDIN>;
+            for (1..$env) {
+                local $/ = "\0";
+                local $_ = <STDIN>;
+                chomp;
                 my ($key, $value) = split(/\s*=\s*/, $_, 2);
-                chomp $value;
                 $ENV{$key} = $value;
             }
+            next;
         }
-        elsif (/^\[ARGV\]$/) {
+        if (/^\[ARGV\]$/) {
             my $args = <STDIN>;
             for (1..$args) {
                 local $/ = "\0";
-                $_ = <STDIN>;
+                local $_ = <STDIN>;
                 chomp;
                 push @ARGV, $_;
             }
             next;
         }
-        elsif (/^\[PID\]$/) {
+        if (/^\[PID\]$/) {
             my $pid = <STDIN>;
             chomp($pid);
             $____pid = $pid;
             open(STDERR, ">${PPERL::SOCKET_NAME}.$pid.err");
             open(____RETCODE, ">${PPERL::SOCKET_NAME}.$pid.ret");
+            next;
         }
-        elsif (/^\[STDIO\]$/) {
+        if (/^\[STDIO\]$/) {
             # warn "binding STDIO";
             last PARTS;
         }
+        die "what's this then? '$_'";
     }
 
     if (!@ARGV) { # magic for <ARGV>

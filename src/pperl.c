@@ -61,31 +61,6 @@ void Debug()
 #endif
 
 
-void send_escaped_line( int sd, char * value )
-{
-    char new_val[BUF_SIZE];
-    int i = 0;
-
-    while( *value )
-    {
-        switch (*value)
-        {
-            case '\n':
-                new_val[i++] = '%';
-                new_val[i++] = '0';
-                new_val[i++] = 'a';
-                break;
-            default:
-                new_val[i++] = *value;
-        }
-        value++;
-    }
-    new_val[i] = '\0';
-
-    send(sd, new_val, strlen(new_val), 0);
-    send(sd, "\n", 1, 0);
-}
-
 int main( int argc, char **argv )
 {
     int i;
@@ -236,6 +211,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     ssize_t readlen;
     struct sockaddr_un saun;
     char *sock_name;
+    char **env;
     char buf[BUF_SIZE];
 	sd = 0;
 
@@ -400,11 +376,25 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 
     /* print to socket... */
     send(sd, "[ENV]\n", 6, 0);
+    
+    for (i= 0, env = environ; *env; i++, env++); 
+    snprintf(buf, BUF_SIZE, "%d\n", i);
+    send(sd, buf, strlen(buf), 0);
+    
     while ( *environ != NULL ) {
+        size_t len = strlen(*environ) + 1;
         /* Debug("sending environ: %s\n", *environ); */
-        send_escaped_line(sd, *environ);
+        send(sd, *environ, len, 0);
         environ++;
     }
+
+    send(sd, "[CWD]\n", 6, 0);
+    if (getcwd(buf, BUF_SIZE) == NULL) {
+        perror("getcwd");
+        exit (1);
+    }
+    send(sd, buf, strlen(buf), 0);
+    send(sd, "\n", 1, 0);
 
     send(sd, "[ARGV]\n", 7, 0);
     snprintf(buf, BUF_SIZE, "%d\n", argc);
@@ -416,11 +406,8 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     }
 
     send(sd, "[PID]\n", 6, 0);
-    {
-        buf[0] = 0;
-        snprintf(buf, BUF_SIZE, "%d", getpid());
-        send_escaped_line(sd, buf);
-    }
+    snprintf(buf, BUF_SIZE, "%d\n", getpid());
+    send(sd, buf, strlen(buf), 0);
     
     send(sd, "[STDIO]\n", 8, 0);
 
