@@ -11,7 +11,7 @@ require Exporter;
 	exit
 );
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 sub exit(;$) {
     my $retval = shift || 0;
@@ -67,10 +67,6 @@ The script params are passed to the script on every invocation. The script
 also gets any current environment variables, and everything on STDIN.
 
 =head1 BUGS
-
-STDERR and the return code are not yet supported.
-
-There is no way to kill the process, except via kill(all).
 
 The process does not reload when the script or modules change.
 

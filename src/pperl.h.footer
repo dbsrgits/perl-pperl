@@ -1,0 +1,16 @@
+    };
+    if ($@) {
+        if ($@ !~ /PPERLexit(\d+)/) {
+            print STDERR $@;
+        }
+        else {
+            print ____RETCODE $1;
+        }
+    }
+    else {
+        print ____RETCODE 0;
+    }
+    
+    close STDERR;
+    close ____RETCODE;
+}

@@ -1,0 +1,80 @@
+use strict;
+
+$PPERL::SOCKET_NAME = $ARGV[0];
+$PPERL::MAX_SERVERS = $ARGV[1] || 3;
+
+package PPerlServer;
+use Net::Server::PreFork;
+use PPerl qw(exit);
+use vars qw(@ISA);
+@ISA = qw(Net::Server::PreFork);
+
+PPerlServer->run();
+exit; # should never get here
+
+sub configure_hook {
+    my $self = shift;
+
+    $self->{server}->{port}   = ["${PPERL::SOCKET_NAME}|unix"]; # port and addr to bind
+    # $self->{server}->{chdir}  = '/';      # chdir to root
+    # $self->{server}->{user}   = 'nobody'; # user to run as
+    # $self->{server}->{group}  = 'nobody'; # group to run as
+    $self->{server}->{min_servers} = $PPERL::MAX_SERVERS;
+    $self->{server}->{setsid} = 1;        # daemonize
+	$self->{server}->{pid_file} = "${PPERL::SOCKET_NAME}.pid";
+
+    open(STDIN, '</dev/null') || die "Can't close STDIN [$!]";
+    open(STDOUT,'>/dev/null') || die "Can't close STDOUT [$!]";
+    open(STDERR, '>/dev/null') || die "Can't close STDERR [$!]";
+    #  open(STDERR,'>&STDOUT')   || die "Can't close STDERR [$!]";
+}
+
+sub process_request {
+    my $____self = shift;
+
+    my $____pid = $$;
+
+    local %ENV = ();
+    local @ARGV = ();
+
+    PARTS:
+    while (<STDIN>) {
+        if (/^\[DIE\]$/) {
+            REAPER();
+        }
+        if (/^\[ENV\]$/) {
+            while (<STDIN>) {
+                redo PARTS if /^\[/;
+                my ($key, $value) = split(/\s*=\s*/, $_, 2);
+                chomp $value;
+                $ENV{$key} = $value;
+            }
+        }
+        elsif (/^\[ARGV\]$/) {
+            while (<STDIN>) {
+                redo PARTS if /^\[/;
+                chomp;
+                push @ARGV, $_;
+            }
+        }
+        elsif (/^\[PID\]$/) {
+            my $pid = <STDIN>;
+            chomp($pid);
+            $____pid = $pid;
+            open(STDERR, ">${PPERL::SOCKET_NAME}.$pid.err");
+            open(____RETCODE, ">${PPERL::SOCKET_NAME}.$pid.ret");
+        }
+        elsif (/^\[STDIO\]$/) {
+            # warn "binding STDIO";
+            last PARTS;
+        }
+    }
+    
+    if (!@ARGV) { # magic for <ARGV>
+        *ARGV = *STDIN;
+    }
+
+    print "OK\n";
+
+    # code goes in eval block here
+    eval {

@@ -1,4 +1,4 @@
-print STDERR ("about to process STDIO\n");
+print $PPERL::error ("about to process STDIO\n");
 while(<STDIN>) {
 	print "read: $_";
 }
