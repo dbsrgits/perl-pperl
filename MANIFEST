@@ -1,0 +1,13 @@
+Changes
+Makefile.PL
+MANIFEST
+PPerl.pm
+README
+t/01basic.t
+t/02usage.t
+src/pperl.c
+src/pperl.h
+src/pperl.h.fork
+examples/io.pl
+examples/large.pl
+
