@@ -36,7 +36,7 @@ int  DispatchCall( char *scriptname, int argc, char **argv );
 void DoIO( int sd, int errsd );
 void ProcessError( int errsd );
 
-char *pVersion = "0.02";
+char *pVersion = PPERL_VERSION;
 char perl_options[1024];
 extern char **environ;
 int skreech_to_a_halt = 0;
@@ -47,7 +47,7 @@ void Debug( const char * format, ...)
 {
     va_list args;
 
-    va_start(args, (void)format);
+    va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
 }
@@ -610,7 +610,7 @@ DoIO( int sd, int errsd )
         shutdown(sd, 2);
         close(sd);
         fflush(NULL);
-        exit(1);
+        return;
     }
 
     return;

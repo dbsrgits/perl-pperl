@@ -60,6 +60,8 @@ EOT
 "\n"
 
 EOT
+
+    print PPERL '#define PPERL_VERSION "'. `$^X -Mlib=. -MPPerl -e 'print \$PPerl::VERSION'`. "\"\n";
     close PPERL;
     close PPERL_HEAD;
     close PPERL_FOOT;

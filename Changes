@@ -1,5 +1,9 @@
 Revision history for Perl extension PPerl.
 
+0.07
+    - Nasty bug where temp files were left around fixed.
+    - Made pperl display proper version
+
 0.06
     - Fixes for Solaris compiles
 
