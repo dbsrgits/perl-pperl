@@ -16,7 +16,9 @@ t/02usage.t
 t/03cat.t
 t/04args.t
 t/05cwd.t
+t/06exit_die.t
 t/args.plx
 t/cat.plx
 t/cwd.plx
 t/env.plx
+t/spammy.plx

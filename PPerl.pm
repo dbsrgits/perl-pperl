@@ -1,22 +1,9 @@
 package PPerl;
 
 use strict;
-use vars qw/@ISA $VERSION @EXPORT/;
+use vars qw/$VERSION/;
 
-require Exporter;
-
-@ISA = ('Exporter');
-
-@EXPORT = qw(
-	exit
-);
-
-$VERSION = '0.09';
-
-sub exit(;$) {
-    my $retval = shift || 0;
-    die "PPERLexit$retval";
-}
+$VERSION = '0.10';
 
 1;
 __END__

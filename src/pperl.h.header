@@ -6,7 +6,15 @@ $PPERL::MAX_SERVERS = $ARGV[1] || 3;
 
 package PPerlServer;
 use Net::Server::PreFork;
-use PPerl qw(exit);
+
+BEGIN {
+    *CORE::GLOBAL::exit = sub {
+        my $retval = shift || 0;
+        print ____RETCODE $retval;
+        goto __PPerl_exit;
+    };
+}
+
 use vars qw(@ISA);
 @ISA = qw(Net::Server::PreFork);
 
@@ -88,5 +96,7 @@ sub process_request {
 
     print "OK\n";
 
+    # reset bogus '<STDIN>, line 99' count
+    $. = 0;
     # code goes in eval block here
     eval {

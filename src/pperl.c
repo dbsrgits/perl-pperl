@@ -219,44 +219,44 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     sock_name = MakeSockName(scriptname);
     Debug("got socket: %s\n", sock_name);
 
-	if (kill_script) {
-		int pid_fd, sock_name_len;
-		char *pid_file;
-		pid_t pid;
-		
-		sock_name_len = strlen(sock_name);
-		pid_file = malloc(sock_name_len + 5);
-		strncpy(pid_file, sock_name, sock_name_len);
-		pid_file[sock_name_len] = '.';
-		pid_file[sock_name_len+1] = 'p';
-		pid_file[sock_name_len+2] = 'i';
-		pid_file[sock_name_len+3] = 'd';
-		pid_file[sock_name_len+4] = '\0';
-		
-		Debug("opening pid_file: %s\n", pid_file);
-		pid_fd = open(pid_file, O_RDONLY);
+    if (kill_script) {
+	int pid_fd, sock_name_len;
+	char *pid_file;
+	pid_t pid;
+	
+	sock_name_len = strlen(sock_name);
+	pid_file = malloc(sock_name_len + 5);
+	strncpy(pid_file, sock_name, sock_name_len);
+	pid_file[sock_name_len] = '.';
+	pid_file[sock_name_len+1] = 'p';
+	pid_file[sock_name_len+2] = 'i';
+	pid_file[sock_name_len+3] = 'd';
+	pid_file[sock_name_len+4] = '\0';
+	
+	Debug("opening pid_file: %s\n", pid_file);
+	pid_fd = open(pid_file, O_RDONLY);
         if (pid_fd == -1) {
-            perror("Cannot open pid file (perhaps PPerl wasn't running for that script?) ");
-            return 1;
+            Debug("Cannot open pid file (perhaps PPerl wasn't running for that script?)\n");
+            return 0;
         }
 
-		readlen = read(pid_fd, buf, BUF_SIZE);
-		if (readlen == -1) {
-			perror("nothing in file?");
-			return 1;
-		}
+	readlen = read(pid_fd, buf, BUF_SIZE);
+	if (readlen == -1) {
+            perror("nothing in pid file?");
+            return 0;
+	}
         buf[readlen] = '\0';
 
-		close(pid_fd);
+	close(pid_fd);
 
-		pid = atoi(buf);
-		Debug("got pid %d (%s)\n", pid, buf);
-		kill(pid, SIGHUP);
+        pid = atoi(buf);
+	Debug("got pid %d (%s)\n", pid, buf);
+        kill(pid, SIGHUP);
 
-		free(pid_file);
+	free(pid_file);
 
-		return 1;
-	}
+	return 0;
+    }
 
     for (i = 0; i < 10; i++) {
         sd = socket(PF_UNIX, SOCK_STREAM, PF_UNSPEC);

@@ -1,17 +1,14 @@
 # -*- perl -*-
     };
+
     if ($@) {
-        if ($@ !~ /PPERLexit(\d+)/) {
-            print STDERR $@;
-        }
-        else {
-            print ____RETCODE $1;
-        }
+        print STDERR $@;
     }
     else {
         print ____RETCODE 0;
     }
-    
+__PPerl_exit:
+
     close STDERR;
     close ____RETCODE;
 }
