@@ -11,7 +11,7 @@ require Exporter;
 	exit
 );
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 sub exit(;$) {
     my $retval = shift || 0;

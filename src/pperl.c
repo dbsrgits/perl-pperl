@@ -152,10 +152,12 @@ MakeSockName(char * scriptname, int error )
     char * save;
     char fullpath[PATH_MAX];
     int i = 0;
+    int socknamelen;
     
     realpath(scriptname, fullpath);
     /* Ugh. I am a terrible C programmer! */
-    sockname = malloc(strlen(P_tmpdir) + strlen(fullpath) + 3 + (error * 4));
+    socknamelen = strlen(P_tmpdir) + strlen(fullpath) + 3 + (error * 4);
+    sockname = malloc(socknamelen);
     save = sockname;
     sprintf(sockname, "%s/", P_tmpdir);
     sockname += strlen(P_tmpdir) + 1;
@@ -185,45 +187,6 @@ void
 sig_handler (int signal)
 {
     skreech_to_a_halt++;
-}
-
-int ConnectError( char * scriptname )
-{
-    int i, sd, len, sock_flags;
-    struct sockaddr_un saun;
-    char * sock_name;
-    
-    for (i = 0; i < 10; i++) {
-        sd = socket(PF_UNIX, SOCK_STREAM, PF_UNSPEC);
-        if (sd != -1) {
-            break;
-        }
-        else if (NO_BUFSPC(errno)) {
-            sleep(1);
-        }
-        else {
-            perror("Couldn't create socket");
-            exit(1);
-        }
-    }
-    
-    /* create socket name */
-    sock_name = MakeSockName(scriptname, 1);
-    Debug("got socket: %s\n", sock_name);
-    
-    saun.sun_family = PF_UNIX;
-    strcpy(saun.sun_path, sock_name);
-    
-    len = sizeof(saun.sun_family) + strlen(saun.sun_path);
-    
-    if (connect(sd, (struct sockaddr *)&saun, len) < 0) {
-        perror("failed to connect to error socket");
-        exit(1);
-    }
-    
-    free(sock_name);
-    
-    return sd;
 }
 
 void DispatchCall( char *scriptname, int argc, char **argv )
@@ -256,7 +219,7 @@ void DispatchCall( char *scriptname, int argc, char **argv )
     saun.sun_family = PF_UNIX;
     strcpy(saun.sun_path, sock_name);
     
-    len = sizeof(saun.sun_family) + strlen(saun.sun_path);
+    len = sizeof(saun.sun_family) + strlen(saun.sun_path) + 1;
     
     if (connect(sd, (struct sockaddr *)&saun, len) < 0) {
         /* Consider spawning Perl here and try again */
