@@ -6,7 +6,7 @@ use vars qw($VERSION @ISA @EXPORT_OK);
 require DynaLoader;
 require Exporter;
 
-$VERSION = '0.19';
+$VERSION = '0.20';
 
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw( s_pipe send_fd recv_fd writen read_int );

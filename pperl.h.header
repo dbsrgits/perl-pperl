@@ -272,7 +272,7 @@ sub do_hup {
 }
 
 sub setup_chunk {
-    my $sd = shift;
+    my $sd = $_[0];
     $sd->autoflush(1);
 
     $spid = $$;
@@ -291,8 +291,18 @@ sub setup_chunk {
     while ((my $target = read_int($sock)) >= 0) {
         log_error("$$ targeting $target\n");
         if ( $target == $sock ) {
-            log_error("$$ gor blimey Mary Poppins, he wants to be me\n");
-            barf("$$ Dick Van Dyke exception!\n");
+            # Mary Poppins, step in time
+            my $newsock = POSIX::dup($sock);
+            unless (defined $newsock) {
+                log_error("$$ gor blimey Mary Poppins, I can't move\n");
+                barf("$$ Dick Van Dyke exception!\n");
+            }
+            POSIX::close($sock);
+            $sock = $newsock;
+            unless ($_[0] = IO::Socket->new_from_fd( $sock, "+<" )) {
+                log_error("$$ failed to step in type\n");
+                barf("$$ Dick Van Dyke shuffle failed!\n");
+            }
         }
         my $fd = recv_fd( $sock );
         if ($fd < 0) {
@@ -387,6 +397,8 @@ while (!$DONE) {
                 @ARGV = ();
 
                 setup_chunk($____self);
+                #setup_chuck can change this
+                $____self_num = $____self->fileno;
 
                 local *ARGV if !@ARGV; # mumble, grumble, scoping
                 if (!@ARGV) { # magic for <ARGV>

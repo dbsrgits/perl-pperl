@@ -1,5 +1,8 @@
 Revision history for Perl extension PPerl.
 
+0.20
+    - Fix for the Dick Van Dyke bug
+    
 0.19
     - Rejig the generated code to fix a nasty closure bug
 

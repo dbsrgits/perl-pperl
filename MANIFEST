@@ -31,11 +31,13 @@ t/13pid.t
 t/14data.t
 t/15punctuation.t
 t/16oops.t
+t/17dickvd.t
 t/args.plx
 t/autoclose.plx
 t/cat.plx
 t/cwd.plx
 t/data.plx
+t/dickvd.plx
 t/djbish.plx
 t/env.plx
 t/fork.plx
