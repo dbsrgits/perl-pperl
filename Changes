@@ -1,5 +1,8 @@
 Revision history for Perl extension PPerl.
 
+0.15
+    - Minor fixes
+    
 0.14
     - Switched entire model to pass fd's over the socket, rather than
       all of STDIN/STDOUT. This means we no longer have to do lots of

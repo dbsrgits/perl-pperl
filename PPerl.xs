@@ -43,13 +43,6 @@ recv_fd(on)
     RETVAL
 
 int
-dup2(old, new)
-     int old;
-     int new;
-   OUTPUT:
-     RETVAL
-
-int
 writen(fd, bytes, count)
      int fd;
      char *bytes;

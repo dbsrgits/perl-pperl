@@ -3,7 +3,7 @@ use strict;
 
 package PPerlServer;
 
-use PPerl qw( recv_fd dup2 writen close_fd read_byte read_int );
+use PPerl qw( recv_fd writen close_fd read_byte read_int );
 my $logfile = '/tmp/pperl.log';
 PPerl::setlogfile($logfile);
 
@@ -221,26 +221,7 @@ sub setup_chunk {
         }
         log_error("$$ $fd wants to be $target\n");
 
-        my $ret;
-        # perl seems to need help when it's a named fd
-        if ($target == 0) {
-            close STDIN  if defined fileno(STDIN);
-            $ret = dup2($fd, $_);
-            open STDIN, "<&=0";
-        }
-        elsif ($target == 1) {
-            close STDOUT if defined fileno(STDOUT);
-            $ret = dup2($fd, $target);
-            open  STDOUT, ">&=1";
-        }
-        elsif ($target == 2) {
-            close STDERR if defined fileno(STDERR);
-            $ret = dup2($fd, $target);
-            open STDERR, ">&=2";
-        }
-        else {
-            $ret = dup2($fd, $target);
-        }
+        my $ret = POSIX::dup2($fd, $target);
         log_error("$$ dup2 returns $ret\n");
         $ret = close_fd($fd);
         log_error("$$ close of $fd returns $ret\n");
