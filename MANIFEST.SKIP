@@ -16,5 +16,5 @@ PPerl\.bs
 PPerl\.o
 PPerl\.c
 ~$
-pperl
+^pperl$
 pperl.h

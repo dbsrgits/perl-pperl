@@ -11,4 +11,4 @@ while(<FOO>) {
     $foo .= "child: $_";
 }
 
-ok(`perl t/stevens.plx`, $foo);
+ok(`$^X t/stevens.plx`, $foo);

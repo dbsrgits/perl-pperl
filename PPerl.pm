@@ -6,10 +6,10 @@ use vars qw($VERSION @ISA @EXPORT_OK);
 require DynaLoader;
 require Exporter;
 
-$VERSION = '0.15';
+$VERSION = '0.16';
 
 @ISA = qw(Exporter DynaLoader);
-@EXPORT_OK = qw( s_pipe send_fd recv_fd dup2 writen close_fd read_byte read_int );
+@EXPORT_OK = qw( s_pipe send_fd recv_fd writen read_int );
 
 bootstrap PPerl $VERSION;
 
@@ -58,7 +58,7 @@ to many persistent perl environments.
 The perl params are sent to the perl binary the first time it is started up.
 See L<perlrun> for details.
 
-The pperl params control how pperl works (none actually implemented yet).
+The pperl params control how pperl works. Try -h for an overview.
 
 The script params are passed to the script on every invocation. The script
 also gets any current environment variables, the current working directory,

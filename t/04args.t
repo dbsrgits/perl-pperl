@@ -15,6 +15,8 @@ ok(capture('./pperl', 't/args.plx', "foo\nbar", 'baz'),
 
 `./pperl -- -k t/args.plx`;
 
+`./pperl t/env.plx`; # run it once so there's a $ENV{PATH} about
+
 %ENV = ( foo       => "bar\nbaz",
          "quu\nx"  => "wobble",
          null      => '');
@@ -22,7 +24,7 @@ ok(capture('./pperl', 't/args.plx', "foo\nbar", 'baz'),
 ok(capture($^X, 't/env.plx'),
   qq{'foo' => 'bar\nbaz'\n'null' => ''\n'quu\nx' => 'wobble'\n});
 
-ok(capture('./pperl', '-Mlib=blib/lib -Mlib=blib/arch', 't/env.plx'),
+ok(capture('./pperl', 't/env.plx'),
   qq{'foo' => 'bar\nbaz'\n'null' => ''\n'quu\nx' => 'wobble'\n});
 
 `./pperl -- -k t/env.plx`;
@@ -30,7 +32,7 @@ ok(capture('./pperl', '-Mlib=blib/lib -Mlib=blib/arch', 't/env.plx'),
 sub capture {
     my $pid = open(FH, "-|");
     my $result;
-    splice(@_, 1, 0, '-Mlib=blib/lib', '-Mlib=blib/arch');
+    splice(@_, 1, 0, '-Iblib/lib', '-Iblib/arch');
     if ($pid) { local $/; $result = <FH>; close FH }
     else      { exec(@_) or die "failure to exec $!"; }
     return $result;

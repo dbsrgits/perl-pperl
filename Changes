@@ -1,5 +1,11 @@
 Revision history for Perl extension PPerl.
 
+0.16
+    - Tests and fixes for: -T behaviour.  fork(), tied data, autoclose
+      behavior, signal propogation, broken test 00stevens.t.
+    - Cleanups for: argument passing.  Amount of stuff in PPerl.xs.
+      Strict prototyping of subs.  Internal use of macros for speed.
+
 0.15
     - Minor fixes
     

@@ -3,7 +3,7 @@ use strict;
 
 local $^W;
 
-open SOUT, "<&=STDOUT"
+open SOUT, "<&=1"
   or die "cannot dup fd 1 - $!";
 my $read = <SOUT>;
 close SOUT

@@ -9,6 +9,8 @@ foreach my $arg (@ARGV) {
     $config{$k} = $v;
 }
 
+my $hacking = $config{HACKING} ? 'DEFINE += -Wall' : '';
+
 my $perl_path;
 if ($config{PERL_PATH}) {
     $perl_path = $config{PERL_PATH};
@@ -56,19 +58,18 @@ WriteMakefile(
 );
 
 
-
 sub MY::postamble {
     "
 # just hacking around
-#DEFINE += -Wall
+$hacking
 
-pperl.h: pperl.h.header pperl.h.footer PPerl.pm
+pperl.h: pperl.h.header PPerl.pm
 \t$^X write_pperl_h
 
 pperl.o: Makefile pperl.c pperl.h
 
 pperl: pperl.o pass_fd.o
-\t\$(CC) \$(CFLAGS) \$(LDFLAGS) \$(DEFINE) -o pperl pperl.c pass_fd.o $Config{libs}
+\t\$(CC) \$(CFLAGS) \$(LDFLAGS) \$(DEFINE) -o pperl pperl.o pass_fd.o $Config{libs}
 
 pass_fd.c: pass_fd.h
 

@@ -4,10 +4,6 @@
 
 #include "pass_fd.c"
 
-ssize_t
-dummy_callback(int foo, const void *bar, size_t baz)
-{ return -1; }
-
 MODULE = PPerl	PACKAGE = PPerl
 
 PROTOTYPES: DISABLE
@@ -49,25 +45,6 @@ writen(fd, bytes, count)
      int count;
    OUTPUT:
      RETVAL
-
-int
-close_fd(fd)
-    int fd;
-  CODE:
-    RETVAL = close(fd);
-  OUTPUT:
-    RETVAL
-
-char
-read_byte(fd)
-    int fd;
-  PREINIT:
-    char foo;
-  CODE:
-    read(fd, &foo, 1);
-    RETVAL = foo;
-  OUTPUT:
-    RETVAL
 
 int
 read_int(fd)
