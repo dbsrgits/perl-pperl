@@ -1,4 +1,4 @@
-//pperl - run perl scripts persistently
+/* pperl - run perl scripts persistently */
 
 #include <stdio.h>
 #include <string.h>
@@ -195,7 +195,8 @@ sig_handler (int signal)
 int GetReturnCode( char *sock_name )
 {
     char buf[4096];
-    int fd, readlen, readupto;
+    int fd, readupto;
+    ssize_t readlen;
     char rd_buf[1];
     char i_buf[9];
     
@@ -237,10 +238,10 @@ int GetReturnCode( char *sock_name )
 int DispatchCall( char *scriptname, int argc, char **argv )
 {
     register int i, sd, errsd, len, sock_flags;
+    ssize_t readlen;
     struct sockaddr_un saun;
     char *sock_name;
     char buf[1024];
-    int readlen;
 	sd = 0;
 
     /* create socket name */
@@ -248,7 +249,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     Debug("got socket: %s\n", sock_name);
 
 	if (kill_script) {
-		int pid_fd, sock_name_len, readlen;
+		int pid_fd, sock_name_len;
 		char *pid_file;
 		pid_t pid;
 		
@@ -345,7 +346,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         write(tmp_fd, scriptname, strlen(scriptname));
         write(tmp_fd, "\n", 1);
 
-        while( ( readlen = read(perl_script, &buf, 500) ) ) {
+        while( ( readlen = read(perl_script, buf, 500) ) ) {
             if (readlen == -1) {
                 perror("read perl_script");
                 exit(1);
@@ -367,7 +368,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
                 sock_name, PREFORK, MAX_CLIENTS_PER_CHILD);
         Debug("syscall: %s\n", syscall);
 
-        // block SIGCHLD so noone else can wait() on the child before we do
+        /* block SIGCHLD so noone else can wait() on the child before we do */
         sigemptyset(&mask);
         sigaddset(&mask, SIGCHLD);
         sigprocmask(SIG_BLOCK, &mask, &omask);
@@ -383,10 +384,10 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         sigprocmask(SIG_SETMASK, &omask, NULL);
         Debug("returned.\n");
 
-        // now remove the perl script
+        /* now remove the perl script */
         unlink(temp_file);
 
-        // try and connect to the new socket
+        /* try and connect to the new socket */
         while ((i++ <= 30) && (connect(sd, (struct sockaddr *)&saun, len) < 0))
         {
             Debug(".");
@@ -404,7 +405,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     /* print to socket... */
     send(sd, "[ENV]\n", 6, 0);
     while ( *environ != NULL ) {
-        // Debug("sending environ: %s\n", *environ);
+        /* Debug("sending environ: %s\n", *environ); */
         send_escaped_line(sd, *environ);
         environ++;
     }
@@ -426,7 +427,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     send(sd, "[STDIO]\n", 8, 0);
 
     Debug("waiting for OK message\n");
-    if (recv(sd, &buf, 3, 0) != 3) {
+    if (recv(sd, buf, 3, 0) != 3) {
         perror("failed to get OK message");
         exit(1);
     }
@@ -468,10 +469,10 @@ void
 ProcessError( int errsd )
 {
     char buf[1];
-    int readlen;
+    ssize_t readlen;
 
     Debug("reading stderr\n");
-    while ( ( readlen = read(errsd, &buf, 1) ) ) {
+    while ( ( readlen = read(errsd, buf, 1) ) ) {
         if (readlen == -1) {
             /* might be EAGAIN (deadlock). Try writing instead */
             if (errno != EAGAIN) {
@@ -480,34 +481,34 @@ ProcessError( int errsd )
             break;
         }
         else {
-            // Debug(buf);
+            /* Debug(buf); */
             write(2, buf, 1);
         }
     }
 }
+
+#define BUF_SIZE 20
 
 void
 DoIO( int sd, int errsd )
 {
     fd_set rfds, wfds, stdin_fds;
     struct timeval tv;
-    int maybe_read, maybe_write, readlen;
-    char buf[1];
-    struct sockaddr name;
-    socklen_t namelen;
+    int maybe_read, maybe_write;
+    ssize_t readlen, writelen;
+    char buf[BUF_SIZE];
     int allow_writes = 1;        
 
     maybe_read = maybe_write = 1;
 
-    namelen = sizeof(name);
-
-    /* set stdin to non-blocking */
-    // sock_flags = fcntl(0, F_GETFL);
-    // fcntl(0, F_SETFL, sock_flags | O_NONBLOCK);
+   /* set stdin to non-blocking */
+    /* sock_flags = fcntl(0, F_GETFL); 
+       fcntl(0, F_SETFL, sock_flags | O_NONBLOCK); 
+    */
 
     signal(SIGINT, sig_handler);
 
-    // while we're connected...
+    /* while we're connected... */
     while (!skreech_to_a_halt) {
         FD_ZERO(&rfds);
         FD_SET(sd, &rfds);
@@ -515,7 +516,7 @@ DoIO( int sd, int errsd )
         FD_ZERO(&stdin_fds);
         FD_SET(0, &stdin_fds);
 
-        // for some reason, if I make usec == 0 (poll), performance sucks
+        /* for some reason, if I make usec == 0 (poll), performance sucks */
         tv.tv_sec = 0;
         tv.tv_usec = 1;
 
@@ -526,23 +527,26 @@ DoIO( int sd, int errsd )
             Debug("can read...\n");
             if (FD_ISSET(sd, &rfds)) {
                 Debug("reading stdout\n");
-                while ( ( readlen = read(sd, &buf, 1) ) ) {
-                    if (readlen == -1) {
-                        /* might be EAGAIN (deadlock). Try writing instead */
-                        if (errno != EAGAIN) {
-                            perror("read");
-                        }
-                        break;
+                readlen = read(sd, buf, BUF_SIZE);
+                if (readlen == -1) {
+                    /* might be EAGAIN (deadlock). Try writing instead */
+                    if (errno != EAGAIN) {
+                        perror("read");
                     }
-                    else {
-                        // Debug(buf);
-
-                        write(1, buf, 1);
-                    }
+                    continue;
                 }
                 if (readlen == 0) {
                     /* all done. remote end closed socket */
-                    // perror("foo");
+                    shutdown(sd, 2);
+                    close(sd);
+                    skreech_to_a_halt = 1;
+                    /* fflush(NULL); eh? */
+                    continue;
+                }
+                /* Debug(buf); */
+                writelen = write(1, buf, readlen);
+                if (writelen != readlen) {
+                    perror("bar");
                     break;
                 }
             }
@@ -571,7 +575,7 @@ DoIO( int sd, int errsd )
                 readlen = read(0, c, 1);
                 Debug("read done, read %d bytes\n", readlen);
                 if (readlen < 1) {
-                    // ignore STDIN read errors and closed STDIN
+                    /* ignore STDIN read errors and closed STDIN */
                     if (errno != EAGAIN) {
                         // perror("stdin");
                         Debug("shutting down write part\n");
@@ -594,21 +598,12 @@ DoIO( int sd, int errsd )
         }
 
         ProcessError(errsd);
-
-        // getpeername can tell us if we're still connected
-        if (getpeername(sd, &name, &namelen) != 0) {
-            perror("getpeername");
-            shutdown(sd, 2);
-            close(sd);
-            fflush(NULL);
-            break;
-        }
     }
     
     ProcessError(errsd);
 
     if (skreech_to_a_halt) {
-        // perror("closing socket");
+        /* perror("closing socket"); */
         shutdown(sd, 2);
         close(sd);
         fflush(NULL);
@@ -619,3 +614,12 @@ DoIO( int sd, int errsd )
 
 }
 
+
+/* 
+Local Variables:
+mode: C
+c-basic-offset: 4
+tab-width: 4
+indent-tabs-mode: nil
+End:
+*/
