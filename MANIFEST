@@ -6,10 +6,14 @@ PPerl.pm
 README
 examples/io.pl
 examples/large.pl
+examples/reverse.pl
 src/pperl.c
 src/pperl.h.footer
 src/pperl.h.header
+src/write_pperl_h
 t/01basic.t
 t/02usage.t
 t/03cat.t
+t/04args.t
+t/args.plx
 t/cat.plx

@@ -1,3 +1,4 @@
+# -*- perl -*-
     };
     if ($@) {
         if ($@ !~ /PPERLexit(\d+)/) {

@@ -1,3 +1,4 @@
+# -*- perl -*-
 use strict;
 
 $PPERL::SOCKET_NAME = $ARGV[0];
@@ -21,7 +22,7 @@ sub configure_hook {
     # $self->{server}->{group}  = 'nobody'; # group to run as
     $self->{server}->{min_servers} = $PPERL::MAX_SERVERS;
     $self->{server}->{setsid} = 1;        # daemonize
-	$self->{server}->{pid_file} = "${PPERL::SOCKET_NAME}.pid";
+        $self->{server}->{pid_file} = "${PPERL::SOCKET_NAME}.pid";
 
     open(STDIN, '</dev/null') || die "Can't close STDIN [$!]";
     open(STDOUT,'>/dev/null') || die "Can't close STDOUT [$!]";
@@ -51,11 +52,14 @@ sub process_request {
             }
         }
         elsif (/^\[ARGV\]$/) {
-            while (<STDIN>) {
-                redo PARTS if /^\[/;
+            my $args = <STDIN>;
+            for (1..$args) {
+                local $/ = "\0";
+                $_ = <STDIN>;
                 chomp;
                 push @ARGV, $_;
             }
+            next;
         }
         elsif (/^\[PID\]$/) {
             my $pid = <STDIN>;
@@ -69,7 +73,7 @@ sub process_request {
             last PARTS;
         }
     }
-    
+
     if (!@ARGV) { # magic for <ARGV>
         *ARGV = *STDIN;
     }

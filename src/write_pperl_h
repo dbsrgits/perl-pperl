@@ -1,0 +1,43 @@
+#!perl -w
+use strict;
+
+
+open(PPERL, ">src/pperl.h") || die "Can't write to src/pperl.h: $!";
+open(PPERL_HEAD, "<src/pperl.h.header") || die "Can't read src/pperl.h.header: $!";
+open(PPERL_FOOT, "<src/pperl.h.footer") || die "Can't read src/pperl.h.footer: $!";
+
+print PPERL <<'EOT';
+/* pperl.h */
+
+#define perl_header ""\
+EOT
+
+while (<PPERL_HEAD>) {
+    s/\\/\\\\/g; # double up all backslashes
+    s/"/\\"/g; # backslash all quotes
+    s/^(.*)$/"$1\\n"\\/; # wrap in quotes
+    print PPERL $_;
+}
+
+print PPERL << 'EOT';
+"\n"
+
+#define perl_footer ""\
+EOT
+
+while (<PPERL_FOOT>) {
+    s/\\/\\\\/g; # double up all backslashes
+    s/"/\\"/g; # backslash all quotes
+    s/^(.*)$/"$1\\n"\\/; # wrap in quotes
+    print PPERL $_;
+}
+
+print PPERL << 'EOT';
+"\n"
+
+EOT
+
+print PPERL '#define PPERL_VERSION "'. `$^X -Mlib=. -MPPerl -e 'print \$PPerl::VERSION'`. "\"\n";
+close PPERL;
+close PPERL_HEAD;
+close PPERL_FOOT;

@@ -21,6 +21,9 @@
 #define PREFORK 2
 #define MAX_CLIENTS_PER_CHILD 3 /* ignored */
 
+/* must never be less than 3 */
+#define BUF_SIZE 4096
+
 #define DEBUG 0
 
 #ifdef ENOBUFS
@@ -60,7 +63,7 @@ void Debug()
 
 void send_escaped_line( int sd, char * value )
 {
-    char new_val[4096];
+    char new_val[BUF_SIZE];
     int i = 0;
 
     while( *value )
@@ -197,45 +200,34 @@ sig_handler (int signal)
 
 int GetReturnCode( char *sock_name )
 {
-    char buf[4096];
+    char buf[BUF_SIZE];
     int fd, readupto;
     ssize_t readlen;
-    char rd_buf[1];
-    char i_buf[9];
     
-    i_buf[0] = 0;
-
-    snprintf(buf, 4000, "%s.%d.ret", sock_name, getpid());
-    readupto = 0;
-
+    snprintf(buf, BUF_SIZE - 1, "%s.%d.ret", sock_name, getpid());
     Debug("Getting return code from: %s\n", buf);
 
     fd = open(buf, O_RDONLY);
-    while( (readlen = read(fd, &rd_buf, 1)) ) {
-        if (readlen == -1) {
-            if (errno != EAGAIN) {
-                perror("read");
-            }
-            break;
-        }
-        else {
-            if (readupto > 8) {
-                /* probably way too much leaway... */
-                perror("readtoomuch");
-                exit(-1);
-            }
-            i_buf[readupto] = rd_buf[0];
-            i_buf[readupto + 1] = 0;
-            readupto++;
-        }
+    if (!fd) {
+        perror("retcode open()");
     }
-    Debug("return code is: %s\n", i_buf);
-
-    /* delete and close the file */
     unlink(buf);
-    close(fd);
 
-    return atoi((const char*)i_buf);
+    Debug("reading return code from %d\n", fd);
+    buf[0] = '\0';
+    readlen = read(fd, buf, BUF_SIZE - 1);
+    if (readlen == -1) {
+        perror("retcode read");
+    }
+    else {
+        buf[readlen] = '\0';
+    }
+
+    Debug("return code is: %s\n", buf);
+
+    close(fd);
+    free(sock_name);
+    return atoi(buf);
 }
 
 int DispatchCall( char *scriptname, int argc, char **argv )
@@ -244,7 +236,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     ssize_t readlen;
     struct sockaddr_un saun;
     char *sock_name;
-    char buf[1024];
+    char buf[BUF_SIZE];
 	sd = 0;
 
     /* create socket name */
@@ -263,7 +255,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 		pid_file[sock_name_len+1] = 'p';
 		pid_file[sock_name_len+2] = 'i';
 		pid_file[sock_name_len+3] = 'd';
-		pid_file[sock_name_len+4] = 0;
+		pid_file[sock_name_len+4] = '\0';
 		
 		Debug("opening pid_file: %s\n", pid_file);
 		pid_fd = open(pid_file, O_RDONLY);
@@ -272,11 +264,12 @@ int DispatchCall( char *scriptname, int argc, char **argv )
             return 1;
         }
 
-		readlen = read(pid_fd, buf, 500);
+		readlen = read(pid_fd, buf, BUF_SIZE);
 		if (readlen == -1) {
 			perror("nothing in file?");
 			return 1;
 		}
+        buf[readlen] = '\0';
 
 		close(pid_fd);
 
@@ -312,8 +305,8 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         /* Consider spawning Perl here and try again */
         int perl_script;
         int tmp_fd;
-        char temp_file[1024];
-        char syscall[4096];
+        char temp_file[BUF_SIZE];
+        char syscall[BUF_SIZE];
         int i = 0;
         int pid, itmp, exitstatus;
         sigset_t mask, omask;
@@ -334,7 +327,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
             exit(1);
         }
 
-        snprintf(temp_file, 1024, "%s/%s", P_tmpdir, "pperlXXXXXX");
+        snprintf(temp_file, BUF_SIZE, "%s/%s", P_tmpdir, "pperlXXXXXX");
         tmp_fd = mkstemp(temp_file);
         if (tmp_fd == -1) {
             perror("Cannot create temporary file");
@@ -349,7 +342,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         write(tmp_fd, scriptname, strlen(scriptname));
         write(tmp_fd, "\n", 1);
 
-        while( ( readlen = read(perl_script, buf, 500) ) ) {
+        while( ( readlen = read(perl_script, buf, BUF_SIZE) ) ) {
             if (readlen == -1) {
                 perror("read perl_script");
                 exit(1);
@@ -367,7 +360,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 
         /*** Temp file creation done ***/
 
-        snprintf(syscall, 4096, "%s %s %s %s %d %d", PERL_INTERP, perl_options, temp_file,
+        snprintf(syscall, BUF_SIZE, "%s %s %s %s %d %d", PERL_INTERP, perl_options, temp_file,
                 sock_name, PREFORK, MAX_CLIENTS_PER_CHILD);
         Debug("syscall: %s\n", syscall);
 
@@ -414,16 +407,18 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     }
 
     send(sd, "[ARGV]\n", 7, 0);
+    snprintf(buf, BUF_SIZE, "%d\n", argc);
+    send(sd, buf, strlen(buf), 0);
     for (i = 0; i < argc; i++) {
-        Debug("sending argv: %s\n", *argv);
-        send_escaped_line(sd, *argv);
-        argv++;
+        size_t len = strlen(argv[i]) + 1;
+        Debug("sending argv: %s\n", argv[i]);
+        send(sd, argv[i], len, 0);
     }
 
     send(sd, "[PID]\n", 6, 0);
     {
         buf[0] = 0;
-        snprintf(buf, 4000, "%d", getpid());
+        snprintf(buf, BUF_SIZE, "%d", getpid());
         send_escaped_line(sd, buf);
     }
     
@@ -435,15 +430,17 @@ int DispatchCall( char *scriptname, int argc, char **argv )
         exit(1);
     }
     if (strncmp(buf, "OK\n", 3)) {
+        buf[3] = 0;
         fprintf(stderr, "incorrect ok message: %s\n", buf);
         exit(1);
     }
 
     /* open stderr stream */
-    snprintf(buf, 4000, "%s.%d.err", sock_name, getpid());
+    snprintf(buf, BUF_SIZE, "%s.%d.err", sock_name, getpid());
     Debug("openning STDERR: %s\n", buf);
     if ( (errsd = open(buf, O_RDONLY)) == -1) {
-        perror("open");
+        perror("open STDERR");
+        exit(1);
     }
 
     /* set flags */
@@ -453,8 +450,6 @@ int DispatchCall( char *scriptname, int argc, char **argv )
     /* set flags */
     sock_flags = fcntl(errsd, F_GETFL);
     fcntl(errsd, F_SETFL, sock_flags | O_NONBLOCK);
-
-    free(sock_name);
 
     Debug("reading results\n");
     DoIO(sd, errsd);
@@ -471,26 +466,23 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 void
 ProcessError( int errsd )
 {
-    char buf[1];
+    char buf[BUF_SIZE];
     ssize_t readlen;
 
     Debug("reading stderr\n");
-    while ( ( readlen = read(errsd, buf, 1) ) ) {
-        if (readlen == -1) {
-            /* might be EAGAIN (deadlock). Try writing instead */
-            if (errno != EAGAIN) {
-                perror("read");
-            }
-            break;
+    readlen = read(errsd, buf, BUF_SIZE);
+    if (readlen == -1) {
+        /* might be EAGAIN (deadlock). Try writing instead */
+        if (errno != EAGAIN) {
+            perror("ProcessError read");
         }
-        else {
-            /* Debug(buf); */
-            write(2, buf, 1);
-        }
+    }
+    else {
+        /* Debug(buf); */
+        write(2, buf, readlen);
     }
 }
 
-#define BUF_SIZE 20
 
 void
 DoIO( int sd, int errsd )
@@ -534,7 +526,7 @@ DoIO( int sd, int errsd )
                 if (readlen == -1) {
                     /* might be EAGAIN (deadlock). Try writing instead */
                     if (errno != EAGAIN) {
-                        perror("read");
+                        perror("read stdout");
                     }
                     continue;
                 }
@@ -569,34 +561,25 @@ DoIO( int sd, int errsd )
             FD_ZERO(&wfds);
             FD_SET(sd, &wfds);
 
-            while (select(sd + 1, NULL, &wfds, NULL, &tv)) {
-                char c[2];
-                /* and we can send it! */
-                Debug("and we can send it\n");
-                tv.tv_sec = 0;
-                tv.tv_usec = 0;
-                readlen = read(0, c, 1);
-                Debug("read done, read %d bytes\n", readlen);
-                if (readlen < 1) {
-                    /* ignore STDIN read errors and closed STDIN */
-                    if (errno != EAGAIN) {
-                        /* perror("stdin"); */
-                        Debug("shutting down write part\n");
-                        fflush(NULL);
-                        shutdown(sd, 1); /* close writing part of the socket now */
-                        allow_writes = 0;
-                    }
-                    break;
+            tv.tv_sec = 0;
+            tv.tv_usec = 0;
+            readlen = read(0, buf, BUF_SIZE);
+            Debug("read done, read %d bytes\n", readlen);
+            if (readlen < 1) {
+                /* ignore STDIN read errors and closed STDIN */
+                if (errno != EAGAIN) {
+                    /* perror("stdin"); */
+                    Debug("shutting down write part\n");
+                    fflush(NULL);
+                    shutdown(sd, 1); /* close writing part of the socket now */
+                    allow_writes = 0;
                 }
-                c[1] = 0;
-                Debug("send: %s onto %d\n", c, sd);
-                send(sd, c, 1, 0);
+            }
+            else {
+                buf[readlen] = 0;
+                Debug("send: %s onto %d\n", buf, sd);
+                send(sd, buf, readlen, 0);
                 Debug("sent\n");
-
-                /* only send a line at a time */
-                if (c[0] == '\n') {
-                    break;
-                }
             }
         }
 
