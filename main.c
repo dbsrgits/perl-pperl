@@ -20,8 +20,6 @@
 
 #include "pass_fd.h" /* the stuff borrowed from stevens */
 
-#define MAX_CLIENTS_PER_CHILD 100
-
 #define DEBUG 0
 
 /* must never be less than 3 */
@@ -45,6 +43,7 @@ pid_t connected_to;
 int kill_script = 0;
 int any_user = 0;
 int prefork = 5;
+int maxclients = 100;
 int path_max;
 
 #if DEBUG
@@ -107,6 +106,16 @@ int main( int argc, char **argv )
             newval = atoi(pArg);
             if (newval > 0) prefork = newval;
         }
+        else if (!strncmp(pArg, "--maxclients", 12) ) {
+            int newval;
+            if (pArg[12] == '=') /* "--maxclients=20" */
+                pArg += 13;
+            else                /* "--maxclients" "20" */
+                pArg = argv[++i];
+
+            newval = atoi(pArg);
+            if (newval > 0) maxclients = newval;
+        }
         else if ( !strcmp(pArg, "-z") || !strcmp(pArg, "--anyuser") )
             any_user = 1;
         else if ( !strcmp(pArg, "-h") || !strcmp(pArg, "--help") )
@@ -154,9 +163,12 @@ static void Usage( char *pName )
            "PPerl Options:\n"
            "  -k  or --kill      Kill the currently running pperl for that script\n"
            "  -h  or --help      This page\n"
+	   "  --prefork          The number of child processes to prefork (default=5)\n"
+	   "  --maxclients       The number of client connections each child\n"
+	   "                       will process (default=100)\n"
            "  -z  or --anyuser   Allow any user (after the first) to access the socket\n"
-           "                     WARNING: This has severe security implications if you\n"
-           "                     don't know what you are doing. Use at your own risk\n"
+           "                       WARNING: This has severe security implications. Use\n"
+	   "                       at your own risk\n"
     );
     exit( 1 );
 }
@@ -389,7 +401,7 @@ static int DispatchCall( char *scriptname, int argc, char **argv )
 
         snprintf(buf, BUF_SIZE, "%s %s %s %s %d %d %d %s", 
                  PERL_INTERP, perl_options, temp_file,
-                 sock_name, prefork, MAX_CLIENTS_PER_CHILD, 
+                 sock_name, prefork, maxclients, 
                  any_user, scriptname);
         Dx(Debug("syscall: %s\n", buf));
 
@@ -504,7 +516,7 @@ handle_socket(int sd, int argc, char **argv) {
 
     write(sd, "[DONE]", 7);
 
-    Dx(Debug("waiting for OK message\n"));
+    Dx(Debug("waiting for OK message from %d\n", sd));
     if (read(sd, buf, 3) != 3) {
         perror("pperl: failed to read 3 bytes for an OK message");
         exit(1);

@@ -1,6 +1,7 @@
 #!perl -w
 use strict;
 
+my $debug = shift || 0;
 open(PPERL, ">pperl.h") || die "Can't write to pperl.h: $!";
 open(PPERL_HEAD, "<pperl.h.header") || die "Can't read pperl.h.header: $!";
 
@@ -15,6 +16,8 @@ EOT
 sub spool {
     while (<PPERL_HEAD>) {
         last if /#### Your Code Here ####/;
+        s/^\s*log_error.*// # lose log_error calls
+          unless $debug;
         s/\\/\\\\/g; # double up all backslashes
         s/"/\\"/g; # backslash all quotes
         s/^(.*)$/"$1\\n"\\/; # wrap in quotes
@@ -37,6 +40,8 @@ print PPERL << 'EOT';
 
 EOT
 
-print PPERL '#define PPERL_VERSION "'. `grep 'VERSION =' PPerl.pm | cut -d"'" -f2` . "\"\n";
+my $version = `grep 'VERSION =' PPerl.pm | cut -d"'" -f2`;
+chomp($version); 
+print PPERL '#define PPERL_VERSION "'. "$version\"\n";
 close PPERL;
 close PPERL_HEAD;

@@ -3,15 +3,6 @@ use strict;
 
 package PPerlServer;
 
-BEGIN {
-    eval { require Filter::cpp };
-    Filter::cpp->import
-        if defined $Filter::Util::Exec::VERSION
-          &&       $Filter::Util::Exec::VERSION > 1.02;
-    # 1.02 is buggy on with files this big on jay - remedial patch
-    # sent.  am assuming it'll be rolled into some future version
-}
-
 use IO::Socket;
 use IO::File;
 use Fcntl ':flock', 'F_GETFL';
@@ -33,20 +24,11 @@ $PPERL::MAX_REQUESTS = $ARGV[2] || 100;
 $PPERL::WIDE_OPEN = $ARGV[3] || 0;
 $0 = $ARGV[4];
 
-use constant PPERL_DEBUG =>
-#define      PPERL_DEBUG   \
-  0
-  ;
-
-sub log_error ($) {
-#if !PPERL_DEBUG
-#define log_error($error)
-    return @_ unless PPERL_DEBUG;
-#else
-    my $error = shift;
-#define log_error($error) \
-    open(FH, ">>$logfile") or die "Can't open logfile: '$logfile' $!"; print FH $error; close(FH)
-#endif
+sub log_error {
+    local *FH;
+    open(FH, ">>$logfile") 
+      or die "Can't open logfile: '$logfile' $!"; 
+    print FH @_;
 }
 
 
@@ -144,7 +126,7 @@ sub safe_fork {
 
   ### fork off a child
   my $pid = fork;
-  unless( defined $pid ){
+  unless( defined $pid ) {
     die "Couldn't fork: [$!]\n";
   }
 
@@ -291,16 +273,18 @@ sub setup_chunk {
     while ((my $target = read_int($sock)) >= 0) {
         log_error("$$ targeting $target\n");
         if ( $target == $sock ) {
+            log_error("$$ performing the Dick Van Dyke shuffle\n");
             # Mary Poppins, step in time
             my $newsock = POSIX::dup($sock);
+            log_error("$$ dup sock: $sock newsock: $newsock\n");
             unless (defined $newsock) {
                 log_error("$$ gor blimey Mary Poppins, I can't move\n");
                 barf("$$ Dick Van Dyke exception!\n");
             }
             POSIX::close($sock);
             $sock = $newsock;
-            unless ($_[0] = IO::Socket->new_from_fd( $sock, "+<" )) {
-                log_error("$$ failed to step in type\n");
+            unless ($sd = $_[0] = IO::Socket->new_from_fd( $sock, "+<" )) {
+                log_error("$$ failed to step in time\n");
                 barf("$$ Dick Van Dyke shuffle failed!\n");
             }
         }
@@ -311,13 +295,14 @@ sub setup_chunk {
             barf($err);
         }
         log_error("$$ $fd wants to be $target\n");
-
-        my $ret = POSIX::dup2($fd, $target);
-        log_error("$$ dup2 returns $ret\n");
-        barf("$$ dup2($fd, $target) failed") unless $ret;
-        $ret = POSIX::close($fd);
-        log_error("$$ close of $fd returns $ret\n");
-        barf("$$ close($fd) failed after dup2($fd, $target)") unless $ret;
+        if ($fd != $target) {
+            my $ret = POSIX::dup2($fd, $target);
+            log_error("$$ dup2 returns $ret\n");
+            barf("$$ dup2($fd, $target) failed") unless $ret;
+            $ret = POSIX::close($fd);
+            log_error("$$ close of $fd returns $ret\n");
+            barf("$$ close($fd) failed after dup2($fd, $target)") unless $ret;
+        }
     }
 
 
@@ -391,14 +376,11 @@ while (!$DONE) {
                     log_error("$$ accept failed: $!\n");
                     last;
                 }
-                my $____self_num = $____self->fileno;
 
                 %ENV  = ();
                 @ARGV = ();
 
                 setup_chunk($____self);
-                #setup_chuck can change this
-                $____self_num = $____self->fileno;
 
                 local *ARGV if !@ARGV; # mumble, grumble, scoping
                 if (!@ARGV) { # magic for <ARGV>
@@ -407,7 +389,7 @@ while (!$DONE) {
                 }
 
                 log_error("$$ sending OK message\n");
-                POSIX::write($____self_num, "OK\n", 3);
+                POSIX::write($____self->fileno, "OK\n", 3);
                 log_error("$$ sent\n");
 
                 # reset bogus '<STDIN>, line 99' count
@@ -456,7 +438,7 @@ while (!$DONE) {
 }
 
 PPerl::kill_children();
-warn "normal termination\n" if PPERL_DEBUG;
+log_error("normal termination\n");
 unlink $PPERL::SOCKET_NAME;
 exit 0;
 

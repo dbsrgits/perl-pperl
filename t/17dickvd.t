@@ -1,16 +1,20 @@
 use Test;
-BEGIN { plan tests => 2 }
+BEGIN { plan tests => 3 }
 
-use IO::File;
-
-my $sock_no = `./pperl t/dickvd.plx`;
+my $sock_no = `./pperl -Iblib/lib -Iblib/arch t/dickvd.plx`;
 print "# Sockno: $sock_no\n";
 ok($sock_no);
 
 # now should try and open same socket
-$sock_no = `./pperl t/dickvd.plx $sock_no>/dev/null`;
-print "# Sockno: $sock_no\n";
+my $fhs = '';
+for ($sock_no .. 13) {
+  $fhs .= " $_<t/01basic.t";
+}
+$fhs .= " 3</dev/null 15<t/01basic.t 21<t/01basic.t";
+my $new_sock_no = `./pperl -Iblib/lib -Iblib/arch t/dickvd.plx $fhs`;
+print "# Sockno: $new_sock_no\n";
 
-ok($sock_no);
+ok($new_sock_no);
+ok($new_sock_no != $sock_no);
 
 `./pperl -- -k t/dickvd.plx`;

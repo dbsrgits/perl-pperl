@@ -1,5 +1,12 @@
 Revision history for Perl extension PPerl.
 
+0.21
+    - Support maxclients setting on command line
+    - Slightly improved debugging
+    - chomp $version in pperl.h - multiline strings are a gcc
+      extension and deprecated
+    - Fixed dickvd bug (again)
+
 0.20
     - Fix for the Dick Van Dyke bug
     

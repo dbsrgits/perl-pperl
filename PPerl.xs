@@ -9,7 +9,9 @@ MODULE = PPerl	PACKAGE = PPerl
 PROTOTYPES: DISABLE
 
 void
-setreadonly(char *name, int value)
+setreadonly(name, value)
+  char * name
+  int  value
   CODE:
     GV *tmpgv;
     if ((tmpgv = gv_fetchpv(name, TRUE, SVt_PV))) {
@@ -20,7 +22,9 @@ setreadonly(char *name, int value)
 
 
 int
-s_pipe(SV* in, SV* out)
+s_pipe(in, out)
+  SV * in
+  SV * out
   CODE:
     int fd[2];
 
@@ -32,15 +36,19 @@ s_pipe(SV* in, SV* out)
 
 
 int
-send_fd(int over, int this)
+send_fd(over, this)
+  int over
+  int this
 
 
 int
-recv_fd(int on)
+recv_fd(on)
+  int on
 
 
 int
-read_int(int fd)
+read_int(fd)
+  int fd
   CODE:
     int foo;
 
