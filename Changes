@@ -1,5 +1,11 @@
 Revision history for Perl extension PPerl.
 
+0.25
+    - Fix exec code
+    - Call srand so children aren't all the same random seed
+    - Fix strange behaviour where perl can't see value in lexical $cycles
+      after loop. Making $cycles a package var fixes this for some reason.
+
 0.24
     - More tests (richardc)
     - Made exec() work (see t/19invoke_djbish.t if you're curious)

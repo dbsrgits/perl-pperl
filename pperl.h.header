@@ -68,7 +68,7 @@ BEGIN {
         # work. See the documentation in t/19invoke_djbish.t for
         # further info on this issue.
         my $package = (caller)[0];
-        log_error("exec $package $retval $should_exit\n");
+        log_error("exec $package $should_exit\n");
         if ($package eq 'PPerlServer' || $should_exit) {
             exec(@_);
         }
@@ -296,7 +296,7 @@ sub do_term {
 }
 
 sub do_hup {
-  log_error("TERM signal received, terminating children...\n");
+  log_error("HUP signal received by $$\n");
   close($socket);
   kill_children();
   exit(0);
@@ -409,6 +409,8 @@ sub setup_chunk {
     }
 }
 
+use vars qw($cycles);
+
 while (!$DONE) {
     while ($CHILD_COUNT < $PPERL::MAX_SERVERS) {
         my $child = launch_child(\&cleanup_child);
@@ -417,8 +419,9 @@ while (!$DONE) {
             $CHILD_COUNT++;
         }
         else {
-            while ($PPERL::MAX_REQUESTS-- && !$should_exit) {
-                log_error("$$ waiting for new jobs (still $PPERL::MAX_REQUESTS to go)\n");
+            $cycles = $PPERL::MAX_REQUESTS;
+            while ($cycles-- && !$should_exit) {
+                log_error("$$ waiting for $cycles more new jobs\n");
                 $____self = $socket->accept;
                 unless ($____self) {
                     log_error("$$ accept failed: $!\n");
@@ -445,6 +448,7 @@ while (!$DONE) {
                 $? = $! = $^E = 0;
                 select STDOUT;
                 '' =~ m/^$/; # should reset match variables
+		srand (time ^ $$);
 
                 goto ____PPerlCode;
               ____PPerlBackAgain:
@@ -479,7 +483,7 @@ while (!$DONE) {
                 log_error("$$ closing down socket\n");
                 close($____self);
             }
-            log_error("$$ child is done (should_exit: $should_exit)\n");
+            log_error("$$ child is done (should_exit: $should_exit, cycles: $cycles)\n");
             exit 0;                 # child is done
         }
     }
