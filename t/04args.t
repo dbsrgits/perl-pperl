@@ -30,6 +30,7 @@ ok(capture('src/pperl', 't/env.plx'),
 sub capture {
     my $pid = open(FH, "-|");
     my $result;
+    splice(@_, 1, 0, '-Mlib=blib/lib');
     if ($pid) { local $/; $result = <FH>; close FH }
     else      { exec(@_) or die "failure to exec $!"; }
     return $result;

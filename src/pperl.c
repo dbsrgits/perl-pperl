@@ -136,6 +136,17 @@ void Usage( char *pName )
     exit( 1 );
 }
 
+void *
+my_malloc(size_t size)
+{
+    void *mem = malloc(size);
+    if (mem == NULL) {
+        perror("malloc failed");
+        exit(-1);
+    }
+    return mem;
+}
+
 /* make socket name from scriptname, switching / for _ */
 char *
 MakeSockName(char * scriptname )
@@ -147,7 +158,7 @@ MakeSockName(char * scriptname )
 
     realpath(scriptname, fullpath);
     /* Ugh. I am a terrible C programmer! */
-    sockname = malloc(strlen(P_tmpdir) + strlen(fullpath) + 3);
+    sockname = my_malloc(strlen(P_tmpdir) + strlen(fullpath) + 3);
     save = sockname;
     sprintf(sockname, "%s/", P_tmpdir);
     sockname += strlen(P_tmpdir) + 1;
@@ -225,7 +236,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 	pid_t pid;
 	
 	sock_name_len = strlen(sock_name);
-	pid_file = malloc(sock_name_len + 5);
+	pid_file = my_malloc(sock_name_len + 5);
 	strncpy(pid_file, sock_name, sock_name_len);
 	pid_file[sock_name_len] = '.';
 	pid_file[sock_name_len+1] = 'p';
@@ -237,6 +248,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 	pid_fd = open(pid_file, O_RDONLY);
         if (pid_fd == -1) {
             Debug("Cannot open pid file (perhaps PPerl wasn't running for that script?)\n");
+            write(1, "No process killed - no pid file\n", 32);
             return 0;
         }
 
@@ -251,7 +263,9 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 
         pid = atoi(buf);
 	Debug("got pid %d (%s)\n", pid, buf);
-        kill(pid, SIGHUP);
+        if (kill(pid, SIGINT) == -1) {
+            perror("could not kill process");
+        }
 
 	free(pid_file);
 
@@ -518,7 +532,7 @@ DoIO( int sd, int errsd )
                     continue;
                 }
                 if (readlen == 0) {
-                    /* all done. remote end closed socket */
+                    Debug("all done. remote end closed socket\n");
                     shutdown(sd, 2);
                     close(sd);
                     skreech_to_a_halt = 1;

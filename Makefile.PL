@@ -44,7 +44,7 @@ EOT
 WriteMakefile(
     'NAME'              => 'PPerl',
     'VERSION_FROM'      => 'PPerl.pm', # finds $VERSION
-    'PREREQ_PM'         => { Net::Server => 0.82 }, # e.g., Module::Name => 1.1
+#    'PREREQ_PM'         => { Net::Server => 0.82 }, # e.g., Module::Name => 1.1
     'EXE_FILES'         => [ qw( src/pperl ) ],
     'realclean'         => {FILES => 'src/pperl'},
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
@@ -55,10 +55,10 @@ WriteMakefile(
 
 sub MY::postamble {
     "
-src/pperl.h: src/pperl.h.header src/pperl.h.footer
+src/pperl.h: src/pperl.h.header src/pperl.h.footer PPerl.pm
 \t$^X src/write_pperl_h
 
-src/pperl: src/pperl.c src/pperl.h
+src/pperl: Makefile src/pperl.c src/pperl.h
 \t\$(CC) \$(CFLAGS) \$(OPTIMIZE) \$(LDFLAGS) \$(DEFINE) -o src/pperl src/pperl.c $Config{libs}
 
 ";

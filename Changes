@@ -1,5 +1,11 @@
 Revision history for Perl extension PPerl.
 
+0.12
+    - Bug fixes for new daemon code
+
+0.11
+    - Remove need for Net::Server
+
 0.10
     - Fix for scripts that use eval {} (Richard Clamp)
 

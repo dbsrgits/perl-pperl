@@ -1,14 +1,27 @@
 # -*- perl -*-
-    };
+        };
+        
+        if ($@) {
+            print STDERR $@;
+        }
+        else {
+            print ____RETCODE 0;
+        }
 
-    if ($@) {
-        print STDERR $@;
-    }
-    else {
-        print ____RETCODE 0;
-    }
 __PPerl_exit:
-
-    close STDERR;
-    close ____RETCODE;
+        
+        close STDERR;
+        close ____RETCODE;
+	close $____self;
+      }
+      exit 0;                 # child is done
+    }
+  }
+  sleep;         # wait for a signal
 }
+
+PPerl::kill_children();
+warn "normal termination\n" if $PPERL::DEBUG;
+exit 0;
+
+

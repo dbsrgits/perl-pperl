@@ -1,9 +1,9 @@
 package PPerl;
 
 use strict;
-use vars qw/$VERSION/;
+use vars qw($VERSION);
 
-$VERSION = '0.10';
+$VERSION = '0.12';
 
 1;
 __END__
@@ -51,7 +51,19 @@ See L<perlrun> for details.
 The pperl params control how pperl works (none actually implemented yet).
 
 The script params are passed to the script on every invocation. The script
-also gets any current environment variables, and everything on STDIN.
+also gets any current environment variables, the current working directory,
+and everything on STDIN.
+
+=head1 Killing
+
+In order to kill a currently running PPerl process, use:
+
+  pperl -- -k <scriptname>
+
+You need to make sure the path to the script is the same as when it was invoked.
+
+Alternatively look for a .pid file for the script in your tmp directory, and
+kill (with SIGINT) the process with that PID.
 
 =head1 BUGS
 
