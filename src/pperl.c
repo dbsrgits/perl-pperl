@@ -19,7 +19,7 @@
 #include "pperl.h"
 
 #define PREFORK 2
-#define MAX_CLIENTS_PER_CHILD 3 /* ignored */
+#define MAX_CLIENTS_PER_CHILD 100
 
 /* must never be less than 3 */
 #define BUF_SIZE 4096
@@ -44,6 +44,8 @@ char perl_options[1024];
 extern char **environ;
 int skreech_to_a_halt = 0;
 int kill_script = 0;
+int any_user = 0;
+int path_max;
 
 #if DEBUG
 void Debug( const char * format, ...)
@@ -70,6 +72,15 @@ int main( int argc, char **argv )
 
     if( argc < 2 )
         Usage( argv[0] );
+
+#ifdef PATH_MAX
+    path_max = PATH_MAX;
+#else
+    path_max = pathconf (path, _PC_PATH_MAX);
+    if (path_max <= 0) {
+        path_max = 4096;
+    }
+#endif
 
     for( i = 1; i<argc; i++ )
     {
@@ -102,9 +113,15 @@ int main( int argc, char **argv )
 
 void DecodePPerlParm( char *pArg )
 {
-	if ( (strncmp(pArg, "-k", 2) == 0) || (strncmp(pArg, "--kill", 6) == 0) ) {
-		kill_script = 1;
-	}
+    if ( (strncmp(pArg, "-k", 2) == 0) || (strncmp(pArg, "--kill", 6) == 0) ) {
+        kill_script = 1;
+    }
+    else if ( (strncmp(pArg, "-z", 2) == 0) || (strncmp(pArg, "--anyuser", 9) == 0) ) {
+        any_user = 1;
+    }
+    else if ( (strncmp(pArg, "-h", 2) == 0) || (strncmp(pArg, "--help", 6) == 0) ) {
+        Usage( NULL );
+    }
 }
 
 void DecodeParm( char *pArg )
@@ -112,6 +129,9 @@ void DecodeParm( char *pArg )
     if ( (strlen(perl_options) + strlen(pArg) + 1) > 1000 ) {
         fprintf(stderr, "param list too long. Sorry.");
         exit(1);
+    }
+    else if ( (strncmp(pArg, "-h", 2) == 0) || (strncmp(pArg, "--help", 6) == 0) ) {
+        Usage( NULL );
     }
     strcat(perl_options, pArg);
     strcat(perl_options, " ");
@@ -129,10 +149,16 @@ void Usage( char *pName )
     {
         printf( "Usage: %.255s [perl options] [-- pperl options] filename\n", pName );
     }
-    printf("perl options are passed to your perl executable.\n"
+    printf("perl options are passed to your perl executable (see perl -h).\n"
            "pperl options control the persistent perl behaviour\n"
-		   "  currently the only pperl option is -k or --kill to kill the script\n"
-		   "  being called\n");
+           "\n"
+           "PPerl Options:\n"
+           "  -k  or --kill      Kill the currently running pperl for that script\n"
+           "  -h  or --help      This page\n"
+           "  -z  or --anyuser   Allow any user (after the first) to access the socket\n"
+           "                     WARNING: This has severe security implications if you\n"
+           "                     don't know what you are doing. Use at your own risk\n"
+    );
     exit( 1 );
 }
 
@@ -153,10 +179,14 @@ MakeSockName(char * scriptname )
 {
     char * sockname;
     char * save;
-    char fullpath[PATH_MAX];
+    char fullpath[path_max];
     int i = 0;
 
-    realpath(scriptname, fullpath);
+    if (realpath(scriptname, fullpath) == NULL) {
+        perror("resolving full pathname to script failed");
+        exit(1);
+    }
+    Debug("realpath returned: %s\n", fullpath);
     /* Ugh. I am a terrible C programmer! */
     sockname = my_malloc(strlen(P_tmpdir) + strlen(fullpath) + 3);
     save = sockname;
@@ -227,6 +257,7 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 	sd = 0;
 
     /* create socket name */
+    Debug("pperl: %s\n", scriptname);
     sock_name = MakeSockName(scriptname);
     Debug("got socket: %s\n", sock_name);
 
@@ -350,8 +381,8 @@ int DispatchCall( char *scriptname, int argc, char **argv )
 
         /*** Temp file creation done ***/
 
-        snprintf(syscall, BUF_SIZE, "%s %s %s %s %d %d", PERL_INTERP, perl_options, temp_file,
-                sock_name, PREFORK, MAX_CLIENTS_PER_CHILD);
+        snprintf(syscall, BUF_SIZE, "%s %s %s %s %d %d %d", PERL_INTERP, perl_options, temp_file,
+                sock_name, PREFORK, MAX_CLIENTS_PER_CHILD, any_user);
         Debug("syscall: %s\n", syscall);
 
         /* block SIGCHLD so noone else can wait() on the child before we do */

@@ -1,5 +1,11 @@
 Revision history for Perl extension PPerl.
 
+0.13
+    - Implement wide-open sockets (for people who need to run the same
+      script as different users). Note this may have bad security "issues".
+    - Turn off strict for actual script (script may turn it on again).
+    - More help page stuff
+
 0.12
     - Bug fixes for new daemon code
 

@@ -59,7 +59,7 @@ src/pperl.h: src/pperl.h.header src/pperl.h.footer PPerl.pm
 \t$^X src/write_pperl_h
 
 src/pperl: Makefile src/pperl.c src/pperl.h
-\t\$(CC) \$(CFLAGS) \$(OPTIMIZE) \$(LDFLAGS) \$(DEFINE) -o src/pperl src/pperl.c $Config{libs}
+\t\$(CC) \$(CFLAGS) \$(OPTIMIZE) \$(LDFLAGS) \$(DEFINE) -o src/pperl src/pperl.c $Config{perllibs}
 
 ";
 }
