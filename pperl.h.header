@@ -61,6 +61,21 @@ BEGIN {
         }
         return $ret;
     };
+
+    *CORE::GLOBAL::exec = sub {
+        # This is so horribly wrong, overloading exec() to be
+        # system();exit() - but there's no other way to make this
+        # work. See the documentation in t/19invoke_djbish.t for
+        # further info on this issue.
+        my $package = (caller)[0];
+        log_error("exec $package $retval $should_exit\n");
+        if ($package eq 'PPerlServer' || $should_exit) {
+            exec(@_);
+        }
+        my $code = system(@_);
+        $exit_code = $code >> 8;
+        goto __PPerl_exit;
+    };
 }
 
 sub barf {
@@ -402,9 +417,8 @@ while (!$DONE) {
             $CHILD_COUNT++;
         }
         else {
-            my $cycles = $PPERL::MAX_REQUESTS;
-            while ($cycles-- && !$should_exit) {
-                log_error("$$ waiting for new jobs\n");
+            while ($PPERL::MAX_REQUESTS-- && !$should_exit) {
+                log_error("$$ waiting for new jobs (still $PPERL::MAX_REQUESTS to go)\n");
                 $____self = $socket->accept;
                 unless ($____self) {
                     log_error("$$ accept failed: $!\n");
@@ -465,6 +479,7 @@ while (!$DONE) {
                 log_error("$$ closing down socket\n");
                 close($____self);
             }
+            log_error("$$ child is done (should_exit: $should_exit)\n");
             exit 0;                 # child is done
         }
     }

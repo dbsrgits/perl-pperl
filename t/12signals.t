@@ -27,9 +27,9 @@ for my $perl ( $^X,
         kill $sig, $child;
         push @expect, "Got SIG$sig\n";
 
-        # bad juju - 5.00503 needs time to compose itself, newer perls
-        # with better signal handling are just fine
-        sleep 1 if $] < 5.006;
+        # bad juju - the forked child will need some time to properly
+        # handle the signals. seems to be time-sensitive
+        sleep 1;
     }
 
     local $/;

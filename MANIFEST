@@ -32,6 +32,9 @@ t/14data.t
 t/15punctuation.t
 t/16oops.t
 t/17dickvd.t
+t/18modified.t
+t/19invoke_djbish.t
+t/20invoke_cat.t
 t/args.plx
 t/autoclose.plx
 t/cat.plx
@@ -41,6 +44,8 @@ t/dickvd.plx
 t/djbish.plx
 t/env.plx
 t/fork.plx
+t/invoke_cat.plx
+t/invoke_djbish.plx
 t/oops.plx
 t/pid.plx
 t/pipe.plx
@@ -52,3 +57,4 @@ t/stevens.plx
 t/taint_pperl.plx
 t/tie.plx
 
+META.yml                                Module meta-data (added by MakeMaker)

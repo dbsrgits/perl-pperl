@@ -1,5 +1,9 @@
 Revision history for Perl extension PPerl.
 
+0.24
+    - More tests (richardc)
+    - Made exec() work (see t/19invoke_djbish.t if you're curious)
+
 0.23
     - Locks around race points
     - More improvements to cleanup
