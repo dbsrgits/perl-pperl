@@ -17,9 +17,11 @@ ok(capture('./pperl', 't/args.plx', "foo\nbar", 'baz'),
 
 `./pperl t/env.plx`; # run it once so there's a $ENV{PATH} about
 
+my $tmp_path = $ENV{PPERL_TMP_PATH};
 %ENV = ( foo       => "bar\nbaz",
          "quu\nx"  => "wobble",
          null      => '');
+$ENV{PPERL_TMP_PATH} = $tmp_path if $tmp_path;
 
 ok(capture($^X, 't/env.plx'),
   qq{'foo' => 'bar\nbaz'\n'null' => ''\n'quu\nx' => 'wobble'\n});

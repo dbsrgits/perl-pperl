@@ -75,6 +75,13 @@ You need to make sure the path to the script is the same as when it was invoked.
 Alternatively look for a .pid file for the script in your tmp directory, and
 kill (with SIGINT) the process with that PID.
 
+=head1 ENVIRONMENT
+
+B<pperl> uses the B<PPERL_TMP_PATH> environment variable to determine
+the directory where to store the files used for inter-process
+communication.  By default, the subdirectory I<.pperl> of the user's
+home directory is used.
+
 =head1 BUGS
 
 The process does not reload when the script or modules change.
