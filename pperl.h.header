@@ -49,7 +49,9 @@ BEGIN {
             exit($retval);
         }
         $exit_code = $retval;
+{ no warnings 'deprecated';
         goto __PPerl_exit;
+}
     };
 
     *CORE::GLOBAL::fork = sub {
@@ -74,7 +76,9 @@ BEGIN {
         }
         my $code = system(@_);
         $exit_code = $code >> 8;
+{ no warnings 'deprecated';
         goto __PPerl_exit;
+}
     };
 }
 
@@ -506,7 +510,9 @@ eval {
     #### Your Code Here ####
 };
 
+{ no warnings 'deprecated';
 goto ____PPerlBackAgain;
+}
 
 BEGIN {
     log_error("finding open filehandles ($PPERL::NO_CLEANUP)\n");
