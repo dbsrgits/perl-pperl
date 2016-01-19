@@ -188,7 +188,6 @@ sub become_daemon {
   open(STDOUT,">/dev/null");
   open(STDERR, '>&STDOUT');
   chdir '/';           # change working directory
-  umask(0);            # forget file mode creation mask
   $ENV{PATH} = '/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin';
   delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
   $SIG{CHLD} = \&reap_child;
